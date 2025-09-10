@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { UserProfile, Question, Message, Report } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const ai = new GoogleGenAI({ apiKey: "AIzaSyAbKR5wEFcEvaKzSdPjZVdn-VA9yz2bH7E" });
 
 // --- PROMPTS and SCHEMAS ---
 
