@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AppContext } from './AppContext';
 import { saveUserProfile, loadUserProfile } from '../services/localStorageService';
 import { checkAndAwardAchievements } from '../services/achievements';
-import type { UserProfile, Report, TimelineEntry, Message, Flashcard, DailyGoal } from '../types';
+import type { UserProfile, Report, TimelineEntry, Message, Flashcard, DailyGoal, StudyPlan } from '../types';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -56,13 +56,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 newlyAwardedAchievements.forEach(ach => {
                     toast.success(`Achievement Unlocked: ${ach.name}!`, { icon: ach.icon, duration: 4000 });
                     profile.achievements.push(ach);
-                    profile.XP += 50;
+                    profile.XP += 50; // Base XP for any achievement
                 });
             }
         }
         setUserProfileState(profile);
         saveUserProfile(profile);
     };
+
+    const addXP = useCallback((amount: number, reason: string) => {
+        if (!userProfile) return;
+
+        let finalAmount = amount;
+        const doubleXpActive = userProfile.doubleXpUntil && new Date(userProfile.doubleXpUntil) > new Date();
+
+        if (doubleXpActive) {
+            finalAmount *= 2;
+        }
+        
+        toast.success(`${reason}. +${finalAmount} XP ${doubleXpActive ? '(2x Boost!)' : ''}`, { icon: '⭐' });
+
+        let profileUpdate = { ...userProfile };
+        if (userProfile.doubleXpUntil && new Date(userProfile.doubleXpUntil) <= new Date()) {
+            profileUpdate.doubleXpUntil = null;
+            // FIX: The 'info' method does not exist on the 'toast' object. 
+            // Replaced `toast.info` with a standard `toast()` call to display the informational message.
+            toast('Your Double XP boost has expired.', { icon: '⏳' });
+        }
+
+        profileUpdate.XP += finalAmount;
+        setUserProfile(profileUpdate);
+    }, [userProfile]);
 
     const recordDailyActivity = useCallback(() => {
         if (!userProfile) return;
@@ -74,21 +98,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const yesterdayStr = yesterday.toISOString().split('T')[0];
         
         const newStreak = userProfile.lastDailyCompletion === yesterdayStr ? userProfile.streak + 1 : 1;
-        const xpEarned = 10;
         
-        toast.success(`Daily activity complete! +${xpEarned} XP`, { icon: '✅' });
+        if (addXP) addXP(10, "Daily activity complete");
+
         if (newStreak > userProfile.streak && newStreak > 1) {
             toast.success(`Streak extended to ${newStreak} days!`, { icon: '🔥' });
         }
         
         const updatedProfile = {
             ...userProfile,
-            XP: userProfile.XP + xpEarned,
+            // XP is handled by addXP
             streak: newStreak,
             lastDailyCompletion: today,
         };
         setUserProfile(updatedProfile);
-    }, [userProfile]);
+    }, [userProfile, addXP]);
 
     const addReport = (report: Report) => {
         if (!userProfile) return;
@@ -112,10 +136,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUserProfile(updatedProfile);
     };
     
-    const addFlashcard = (flashcard: Omit<Flashcard, 'id'>) => {
+    const addFlashcard = (flashcard: Omit<Flashcard, 'id' | 'dueDate' | 'interval' | 'easeFactor'>) => {
         if (!userProfile) return;
-        const newFlashcard: Flashcard = { ...flashcard, id: uuidv4() };
+        const newFlashcard: Flashcard = {
+            ...flashcard,
+            id: uuidv4(),
+            dueDate: new Date().toISOString(),
+            interval: 1,
+            easeFactor: 2.5,
+        };
         const updatedProfile = { ...userProfile, flashcards: [newFlashcard, ...userProfile.flashcards] };
+        setUserProfile(updatedProfile);
+    };
+
+    const updateFlashcard = (updatedCard: Flashcard) => {
+        if (!userProfile) return;
+        const updatedFlashcards = userProfile.flashcards.map(card =>
+            card.id === updatedCard.id ? updatedCard : card
+        );
+        const updatedProfile = { ...userProfile, flashcards: updatedFlashcards };
         setUserProfile(updatedProfile);
     };
 
@@ -136,24 +175,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const completeDailyGoal = (goalId: string) => {
-        if (!userProfile || !userProfile.dailyGoals) return;
+        if (!userProfile || !userProfile.dailyGoals || !addXP) return;
         let xpGained = 0;
+        let goalDescription = '';
         const updatedGoals = userProfile.dailyGoals.goals.map(g => {
             if (g.id === goalId && !g.isCompleted) {
                 xpGained = g.xp;
+                goalDescription = g.description;
                 return { ...g, isCompleted: true };
             }
             return g;
         });
+
         if (xpGained > 0) {
-            toast.success(`Goal complete! +${xpGained} XP`, { icon: '✨' });
+            addXP(xpGained, `Goal complete: ${goalDescription}`);
             const updatedProfile = {
                 ...userProfile,
-                XP: userProfile.XP + xpGained,
                 dailyGoals: { ...userProfile.dailyGoals, goals: updatedGoals }
             };
             setUserProfile(updatedProfile);
         }
+    };
+
+    const addStudyPlan = (plan: StudyPlan) => {
+        if (!userProfile) return;
+        const updatedProfile = { ...userProfile, studyPlans: [plan, ...userProfile.studyPlans] };
+        setUserProfile(updatedProfile);
     };
 
     return (
@@ -168,7 +215,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updateMastery,
             setDailyGoals,
             completeDailyGoal,
-            recordDailyActivity
+            recordDailyActivity,
+            addStudyPlan,
+            updateFlashcard,
+            addXP
         }}>
             {children}
         </AppContext.Provider>

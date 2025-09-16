@@ -4,7 +4,7 @@ import React, { useContext, useState, useEffect, useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { View, type Question, type DailyGoal } from '../types';
-import { generateDailyQuestions, generateDailyGoals } from '../services/geminiService';
+import { generateDailyQuestions, generateDailyGoals, generateDailyTeaser, generateDashboardInsight } from '../services/geminiService';
 import toast from 'react-hot-toast';
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: string }> = ({ title, value, icon }) => (
@@ -112,7 +112,7 @@ const DailyFiveModal: React.FC<{ onClose: () => void; onComplete: () => void }> 
 
 
 const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = ({ setActiveView }) => {
-    const { userProfile, setDailyGoals, completeDailyGoal } = useContext(AppContext);
+    const { userProfile, setDailyGoals, completeDailyGoal, setUserProfile } = useContext(AppContext);
     const [showDailyFive, setShowDailyFive] = useState(false);
     
     const today = new Date().toISOString().split('T')[0];
@@ -133,6 +133,28 @@ const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = (
         }
     }, [userProfile, setDailyGoals]);
     
+    // Daily Teaser Logic
+    useEffect(() => {
+        if (!userProfile || !setUserProfile) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (userProfile.dailyTeaser?.date !== todayStr) {
+            generateDailyTeaser(userProfile.board).then(teaser => {
+                setUserProfile({ ...userProfile, dailyTeaser: { date: todayStr, teaser } });
+            }).catch(err => console.error("Failed to generate daily teaser:", err));
+        }
+    }, [userProfile, setUserProfile]);
+    
+     // Daily Insight Logic
+    useEffect(() => {
+        if (!userProfile || !setUserProfile) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (userProfile.dashboardInsight?.date !== todayStr) {
+            generateDashboardInsight(userProfile).then(insight => {
+                setUserProfile({ ...userProfile, dashboardInsight: { date: todayStr, insight } });
+            }).catch(err => console.error("Failed to generate dashboard insight:", err));
+        }
+    }, [userProfile, setUserProfile]);
+
     const handleGoalToggle = (goalId: string, isCompleted: boolean) => {
         if (!isCompleted && completeDailyGoal) {
             completeDailyGoal(goalId);
@@ -155,6 +177,21 @@ const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = (
         <div className="space-y-8">
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-gray-100 animate-fade-in">Hey {userProfile?.name}, ready to learn?</h1>
             
+            {userProfile?.dashboardInsight && (
+                 <div className="bg-blue-100 dark:bg-blue-900/50 border-l-4 border-blue-400 text-blue-800 dark:text-blue-200 p-4 rounded-r-lg shadow-md animate-fade-in">
+                    <p className="font-bold">🚀 Your Daily Insight</p>
+                    <p>{userProfile.dashboardInsight.insight}</p>
+                </div>
+            )}
+
+            {userProfile?.dailyTeaser && (
+                 <div className="bg-yellow-100 dark:bg-yellow-900/50 border-l-4 border-yellow-400 text-yellow-800 dark:text-yellow-200 p-4 rounded-r-lg shadow-md animate-fade-in">
+                    <p className="font-bold">💡 Today's Brain Teaser</p>
+                    <p>{userProfile.dailyTeaser.teaser}</p>
+                </div>
+            )}
+
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="XP Points" value={userProfile?.XP || 0} icon="⭐" />
                 <StatCard title="Learning Streak" value={`${userProfile?.streak || 0} Days`} icon="🔥" />
@@ -207,7 +244,10 @@ const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = (
                             topMasteryTopics.map(([topic, score]) => (
                                 <div key={topic}>
                                     <div className="flex justify-between mb-1">
-                                        <span className="text-base font-medium text-gray-700 dark:text-gray-300">{topic}</span>
+                                        <span className="text-base font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                            {topic}
+                                            {userProfile?.conceptStreaks[topic] > 2 && <span className="ml-2" title={`Concept Streak: ${userProfile.conceptStreaks[topic]}`}>🔥</span>}
+                                        </span>
                                         <span className="text-sm font-medium text-green-600 dark:text-green-400">{score}% Mastery</span>
                                     </div>
                                     <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">

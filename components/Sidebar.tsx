@@ -1,4 +1,5 @@
 
+
 import React, { useContext } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { View } from '../types';
@@ -11,6 +12,9 @@ import { ReportIcon } from './icons/ReportIcon';
 import { TimelineIcon } from './icons/TimelineIcon';
 import { FlashcardIcon } from './icons/FlashcardIcon';
 import { AchievementIcon } from './icons/AchievementIcon';
+import { StoreIcon } from './icons/StoreIcon';
+import { StudyPlannerIcon } from './icons/StudyPlannerIcon';
+import { StudyZoneIcon } from './icons/StudyZoneIcon';
 
 
 interface SidebarProps {
@@ -26,11 +30,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
     const navItems = [
         { view: View.DASHBOARD, label: 'Dashboard', icon: DashboardIcon },
         { view: View.TUTOR, label: 'AI Tutor', icon: TutorIcon },
+        { view: View.STUDY_PLAN, label: 'Study Planner', icon: StudyPlannerIcon },
         { view: View.TESTS, label: 'Tests & Challenges', icon: TestIcon },
         { view: View.FLASHCARDS, label: 'Flashcards', icon: FlashcardIcon },
         { view: View.REPORTS, label: 'Reports', icon: ReportIcon },
         { view: View.TIMELINE, label: 'Timeline', icon: TimelineIcon },
+        { view: View.STUDY_ZONE, label: 'Study Zone', icon: StudyZoneIcon },
         { view: View.ACHIEVEMENTS, label: 'Achievements', icon: AchievementIcon },
+        { view: View.STORE, label: 'Store', icon: StoreIcon },
     ];
     
     const handleLogout = () => {
@@ -58,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Built by Tanmay Garg and Saanvi Jha</p>
                     <p className="text-md text-gray-600 dark:text-gray-400 mt-4">Welcome, {userProfile?.name}!</p>
                 </div>
-                <nav className="flex-1 p-4 space-y-2">
+                <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                     {navItems.map(item => {
                         const isActive = activeView === item.view;
                         return (

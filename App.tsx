@@ -12,6 +12,9 @@ import Timeline from './components/Timeline';
 import Login from './components/Login';
 import Flashcards from './components/Flashcards';
 import Achievements from './components/Achievements';
+import Store from './components/Store';
+import StudyPlanner from './components/StudyPlanner';
+import StudyZone from './components/StudyZone';
 import { View } from './types';
 import { Toaster } from 'react-hot-toast';
 
@@ -36,6 +39,12 @@ const AppContent: React.FC = () => {
                 return <Flashcards />;
             case View.ACHIEVEMENTS:
                 return <Achievements />;
+            case View.STORE:
+                return <Store />;
+            case View.STUDY_PLAN:
+                return <StudyPlanner />;
+            case View.STUDY_ZONE:
+                return <StudyZone />;
             default:
                 return <Dashboard setActiveView={setActiveView} />;
         }
@@ -50,11 +59,11 @@ const AppContent: React.FC = () => {
     }
     
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex">
+        <div className="h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex overflow-hidden">
             {userProfile ? (
                 <>
                     <Sidebar activeView={activeView} setActiveView={setActiveView} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-                    <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+                    <main className={`flex-1 p-4 md:p-6 ${activeView === View.TUTOR ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
                          <button
                             className="md:hidden p-2 mb-4 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                             onClick={() => setIsSidebarOpen(true)}

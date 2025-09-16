@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, ConceptMapNode } from '../types';
+import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, ConceptMapNode, StudyBuddyPersona, StudyPlan } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -17,13 +17,22 @@ const getAi = (): GoogleGenAI => {
 
 // --- PROMPTS and SCHEMAS ---
 
-const TUTOR_SYSTEM_INSTRUCTION = (board: string) => `You are Examito, an expert AI tutor for a student studying the ${board} curriculum. Your primary goal is to foster deep understanding.
-- **Socratic Method:** Instead of providing direct answers, guide students with leading questions to help them arrive at the solution themselves.
-- **Adaptive Learning:** Adjust your teaching style based on the user's responses. If they struggle, offer simpler explanations and hints. If they show understanding, challenge them with more complex scenarios.
-- **Direct Answers:** Only give a direct answer if the user explicitly asks for it (e.g., "give me the answer") or is clearly frustrated and stuck after several attempts.
+const getTutorSystemInstruction = (board: string, persona: StudyBuddyPersona) => {
+    const baseInstruction = `You are Examito, an expert AI tutor for a student studying the ${board} curriculum.
 - **Math Formatting:** When writing mathematical equations or formulas, use LaTeX syntax. For block equations, enclose them in \`$$\`...\`$$\`. For inline equations, use \`$\`...\`$\`.
 - **Timeline Integration:** You can help users organize their studies. If a user asks to remember something or schedule a study session, respond ONLY with a JSON object inside <TIMELINE_ENTRY> tags. The JSON should have "title", "description", "date" (in YYYY-MM-DD format), and "reminderFrequency" ('daily', 'weekly', 'monthly', or 'none'). For example: <TIMELINE_ENTRY>{"title": "Review Photosynthesis", "description": "Go over the light-dependent and independent reactions.", "date": "2024-08-15", "reminderFrequency": "weekly"}</TIMELINE_ENTRY>. Do not add any text outside of the tag if you use it.
 - **File Analysis:** If provided with text from a file (like a PDF), or an image, use that content as the primary context for your response.`;
+    
+    switch(persona) {
+        case 'encourager':
+            return `${baseInstruction}\n- **Persona: The Encourager.** Your primary goal is to be positive and build confidence. Use uplifting language. Celebrate small wins. When a student struggles, reassure them that it's okay and gently guide them. Frame feedback constructively.`;
+        case 'challenger':
+            return `${baseInstruction}\n- **Persona: The Challenger.** Your primary goal is to push the student to think critically and deeply. Be more direct. After a correct answer, ask a difficult follow-up question to test their true understanding. Challenge their assumptions.`;
+        case 'tutor':
+        default:
+            return `${baseInstruction}\n- **Persona: The Socratic Tutor.** Your primary goal is to foster deep understanding. Instead of providing direct answers, guide students with leading questions to help them arrive at the solution themselves. Only give a direct answer if the user explicitly asks for it or is clearly frustrated.`;
+    }
+};
 
 const questionSchema = {
     type: Type.OBJECT,
@@ -52,7 +61,7 @@ const reportSchema = {
 const flashcardSchema = {
     type: Type.OBJECT,
     properties: {
-        front: { type: Type.STRING, description: "The question or term for the front of the flashcard." },
+        front: { type: Type.STRING, description: "The question or term for the front of the a flashcard." },
         back: { type: Type.STRING, description: "The answer or definition for the back of the flashcard." },
         subject: { type: Type.STRING, description: "The general subject of the flashcard, e.g., 'Biology'."}
     },
@@ -87,6 +96,30 @@ const conceptMapSchema: any = {
     required: ['topic', 'children']
 };
 
+const studyPlanSchema = {
+    type: Type.ARRAY,
+    description: "A list of weekly plans.",
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            week: { type: Type.NUMBER, description: "The week number of the study plan." },
+            dailyTasks: {
+                type: Type.ARRAY,
+                description: "A list of tasks for each day of the week.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        day: { type: Type.STRING, description: "The day of the week (e.g., Monday)." },
+                        task: { type: Type.STRING, description: "The specific study task for that day." }
+                    },
+                    required: ["day", "task"]
+                }
+            }
+        },
+        required: ["week", "dailyTasks"]
+    }
+};
+
 
 // --- API FUNCTIONS ---
 
@@ -98,7 +131,7 @@ export const getAdaptiveResponse = async (
 ): Promise<string> => {
     const ai = getAi();
     const model = 'gemini-2.5-flash';
-    const systemInstruction = TUTOR_SYSTEM_INSTRUCTION(userProfile.board);
+    const systemInstruction = getTutorSystemInstruction(userProfile.board, userProfile.studyBuddyPersona);
 
     const contents = history.map(msg => {
         const parts: any[] = [];
@@ -183,7 +216,8 @@ export const generateProgressReport = async (userProfile: UserProfile): Promise<
         score: t.score,
         date: t.dateTaken,
         correct: t.correctAnswers,
-        total: t.totalQuestions
+        total: t.totalQuestions,
+        type: t.isChallenge ? 'Challenge' : 'Test'
     }));
 
     const prompt = `Analyze the following student data to generate a comprehensive progress report.
@@ -229,16 +263,19 @@ export const analyzeFileContent = async (base64Data: string, mimeType: string, p
     return response.text;
 };
 
-export const generateFlashcard = async (text: string): Promise<Omit<Flashcard, 'id'>> => {
+export const generateFlashcards = async (text: string): Promise<Omit<Flashcard, 'id' | 'dueDate' | 'interval' | 'easeFactor'>[]> => {
     const ai = getAi();
-    const prompt = `Based on the following text, create a concise flashcard with a 'front' (a question or term) and a 'back' (the answer or definition). Also identify the general 'subject'. Text: "${text}"`;
+    const prompt = `Based on the following text, create a set of 1 to 3 concise and relevant flashcards. For each, provide a 'front' (a question or term), a 'back' (the answer or definition), and identify the general 'subject'. Text: "${text}"`;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
             responseMimeType: 'application/json',
-            responseSchema: flashcardSchema,
+            responseSchema: {
+                type: Type.ARRAY,
+                items: flashcardSchema
+            },
         }
     });
 
@@ -294,4 +331,81 @@ export const generateConceptMap = async (history: Message[]): Promise<ConceptMap
     });
 
     return JSON.parse(response.text);
+};
+
+export const generateDailyTeaser = async (board: string): Promise<string> => {
+    const ai = getAi();
+    const prompt = `Generate a single, short, fun, and engaging brain teaser or "did you know?" fact suitable for a student studying the ${board} curriculum. Keep it under 200 characters.`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+    });
+    
+    return response.text;
+};
+
+export const getSimplifiedResponse = async (textToSimplify: string): Promise<string> => {
+    const ai = getAi();
+    const prompt = `Explain the following text in very simple terms, as if you were talking to a beginner who is new to the topic. Use analogies if they are helpful.
+
+    Text to simplify: "${textToSimplify}"`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+    });
+    
+    return `**✨ Here's a simpler take:**\n\n${response.text}`;
+};
+
+export const generateStudyPlan = async (examName: string, examDate: string, topics: string[], board: string, startDate: string): Promise<Pick<StudyPlan, 'plan'>> => {
+    const ai = getAi();
+    const prompt = `Create a structured, week-by-week study plan for a student studying the ${board} curriculum.
+    
+    - Exam Name: ${examName}
+    - Exam Date: ${examDate}
+    - Plan Start Date: ${startDate}
+    - Topics to Cover: ${topics.join(', ')}
+
+    The plan should be broken down into weeks, and each week should have tasks for Monday to Friday. Tasks should be specific and actionable (e.g., "Review Topic A flashcards", "Take a 10-question practice test on Topic B", "Read Chapter 3 on Topic C"). The plan should be realistic and build progressively from the start date.`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: studyPlanSchema
+        }
+    });
+
+    const planData = JSON.parse(response.text);
+    return { plan: planData };
+};
+
+export const generateDashboardInsight = async (userProfile: UserProfile): Promise<string> => {
+    const ai = getAi();
+    const testSummary = userProfile.tests.slice(-5).map(t => `- Scored ${t.score}% on ${t.subject} on ${new Date(t.dateTaken).toLocaleDateString()}`).join('\n');
+    const masterySummary = JSON.stringify(userProfile.mastery);
+    const prompt = `Analyze this student's recent activity and provide one short, encouraging, and actionable insight for their dashboard. The insight should be a single sentence.
+    
+    Recent Tests:
+    ${testSummary || "No recent tests."}
+    
+    Concept Mastery:
+    ${masterySummary}
+    
+    Example Insights:
+    "You're mastering Photosynthesis! Why not try a timed challenge to test your skills?"
+    "Great job on your recent tests! Remember to review your flashcards for Algebra to keep the concepts fresh."
+    "You've been studying consistently. Keep up the great work! Try the AI Tutor to explore a new topic today."
+    `;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+    });
+    
+    // Return only the first line of the response to ensure it's a single sentence.
+    return response.text.split('\n')[0];
 };

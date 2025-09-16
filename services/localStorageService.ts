@@ -1,6 +1,6 @@
 
 
-import { UserProfile } from '../types';
+import { UserProfile, Flashcard } from '../types';
 
 const USER_PROFILE_KEY = 'examitoUserProfile';
 
@@ -36,13 +36,25 @@ export const loadUserProfile = (): UserProfile | null => {
     try {
         const profileJson = localStorage.getItem(USER_PROFILE_KEY);
         if (profileJson) {
-            const profile = JSON.parse(profileJson);
+            const profile: UserProfile = JSON.parse(profileJson);
             // Ensure new fields exist for users with old profiles
-            profile.flashcards = profile.flashcards || [];
+            profile.flashcards = (profile.flashcards || []).map((card: any) => ({
+                ...card,
+                dueDate: card.dueDate || new Date().toISOString(),
+                interval: card.interval || 1,
+                easeFactor: card.easeFactor || 2.5,
+            }));
             profile.achievements = profile.achievements || [];
             profile.mastery = profile.mastery || {};
             profile.streakFreezes = profile.streakFreezes || 0;
             profile.dailyGoals = profile.dailyGoals || null;
+            profile.studyBuddyPersona = profile.studyBuddyPersona || 'tutor';
+            profile.conceptStreaks = profile.conceptStreaks || {};
+            profile.dailyTeaser = profile.dailyTeaser || null;
+            profile.studyPlans = profile.studyPlans || [];
+            profile.dashboardInsight = profile.dashboardInsight || null;
+            profile.doubleXpUntil = profile.doubleXpUntil || null;
+            profile.customQuizTickets = profile.customQuizTickets || 0;
             return profile;
         }
         return null;
@@ -68,5 +80,12 @@ export const getInitialUserProfile = (name: string, board: string): UserProfile 
         mastery: {},
         streakFreezes: 1,
         dailyGoals: null,
+        studyBuddyPersona: 'tutor',
+        conceptStreaks: {},
+        dailyTeaser: null,
+        studyPlans: [],
+        dashboardInsight: null,
+        doubleXpUntil: null,
+        customQuizTickets: 0,
     };
 };

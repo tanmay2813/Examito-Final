@@ -8,6 +8,9 @@ export enum View {
     TIMELINE = 'TIMELINE',
     FLASHCARDS = 'FLASHCARDS',
     ACHIEVEMENTS = 'ACHIEVEMENTS',
+    STORE = 'STORE',
+    STUDY_PLAN = 'STUDY_PLAN',
+    STUDY_ZONE = 'STUDY_ZONE',
 }
 
 export interface Flashcard {
@@ -15,6 +18,10 @@ export interface Flashcard {
     front: string; // The question/concept
     back: string; // The answer/explanation
     subject: string;
+    // Spaced Repetition System (SRS) fields
+    dueDate: string; // ISO 8601 string for the next review date
+    interval: number; // The interval in days until the next review
+    easeFactor: number; // A multiplier for the interval
 }
 
 export interface DailyGoal {
@@ -37,6 +44,23 @@ export interface ConceptMapNode {
     children: ConceptMapNode[];
 }
 
+export type StudyBuddyPersona = 'tutor' | 'encourager' | 'challenger';
+
+export interface StudyPlan {
+    id: string;
+    examName: string;
+    examDate: string;
+    topics: string[];
+    plan: {
+        week: number;
+        dailyTasks: {
+            day: string;
+            task: string;
+        }[];
+    }[];
+    dateGenerated: string;
+}
+
 export interface UserProfile {
     name: string;
     board: string;
@@ -55,6 +79,19 @@ export interface UserProfile {
         date: string; // YYYY-MM-DD
         goals: DailyGoal[];
     } | null;
+    studyBuddyPersona: StudyBuddyPersona;
+    conceptStreaks: { [topic: string]: number }; // Topic -> streak count
+    dailyTeaser: {
+        date: string; // YYYY-MM-DD
+        teaser: string;
+    } | null;
+    studyPlans: StudyPlan[];
+    dashboardInsight: {
+        date: string; // YYYY-MM-DD
+        insight: string;
+    } | null;
+    doubleXpUntil: string | null; // ISO timestamp
+    customQuizTickets: number;
 }
 
 export interface Question {
@@ -76,6 +113,7 @@ export interface TestRecord {
     totalQuestions: number;
     correctAnswers: number;
     incorrectAnswers: number;
+    isChallenge: boolean;
 }
 
 export interface Report {

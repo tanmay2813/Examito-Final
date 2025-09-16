@@ -1,9 +1,9 @@
 
 
 import React, { useState, useRef, useEffect, useContext } from 'react';
-import { getAdaptiveResponse, generateFlashcard, generateConceptMap } from '../services/geminiService';
+import { getAdaptiveResponse, generateFlashcards, generateConceptMap, getSimplifiedResponse } from '../services/geminiService';
 import { AppContext } from '../contexts/AppContext';
-import { TimelineEntry, Message, UserTimelineEntry, ConceptTimelineEntry, ConceptMapNode } from '../types';
+import { TimelineEntry, Message, UserTimelineEntry, ConceptTimelineEntry, ConceptMapNode, StudyBuddyPersona } from '../types';
 import ConceptMapModal from './ConceptMapModal';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
@@ -81,7 +81,7 @@ const extractPdfText = async (file: File): Promise<string> => {
 };
 
 const AdaptiveTutor: React.FC = () => {
-    const { userProfile, setTutorHistory, addTimelineEntry, addFlashcard, recordDailyActivity } = useContext(AppContext);
+    const { userProfile, setUserProfile, setTutorHistory, addTimelineEntry, addFlashcard, recordDailyActivity } = useContext(AppContext);
     const messages = userProfile?.tutorHistory || [];
 
     const [input, setInput] = useState('');
@@ -214,16 +214,34 @@ const AdaptiveTutor: React.FC = () => {
         toast.success('Concept saved to timeline!');
     };
     
-    const handleCreateFlashcard = async (message: Message) => {
+    const handleCreateFlashcards = async (message: Message) => {
         if (!addFlashcard) return;
-        const toastId = toast.loading('Creating flashcard...');
+        const toastId = toast.loading('Creating flashcards...');
         try {
-            const flashcardContent = await generateFlashcard(message.text);
-            addFlashcard(flashcardContent);
-            toast.success('Flashcard created and saved!', { id: toastId });
+            const flashcardContents = await generateFlashcards(message.text);
+            flashcardContents.forEach(card => addFlashcard(card));
+            const cardCount = flashcardContents.length;
+            toast.success(`${cardCount} flashcard${cardCount > 1 ? 's' : ''} created and saved!`, { id: toastId });
         } catch (error) {
-            console.error("Failed to create flashcard:", error);
-            toast.error('Could not create flashcard.', { id: toastId });
+            console.error("Failed to create flashcards:", error);
+            toast.error('Could not create flashcards.', { id: toastId });
+        }
+    };
+    
+    const handleExplainSimply = async (message: Message) => {
+        if (!setTutorHistory) return;
+        setIsLoading(true);
+        const toastId = toast.loading('Simplifying...');
+        try {
+            const simplifiedText = await getSimplifiedResponse(message.text);
+            const aiMessage: Message = { id: uuidv4(), text: simplifiedText, sender: 'model' };
+            setTutorHistory([...messages, aiMessage]);
+            toast.success('Explanation simplified!', { id: toastId });
+        } catch (error) {
+            console.error("Failed to get simplified response:", error);
+            toast.error('Could not simplify the text.', { id: toastId });
+        } finally {
+            setIsLoading(false);
         }
     };
     
@@ -243,21 +261,41 @@ const AdaptiveTutor: React.FC = () => {
         }
     };
 
+    const handlePersonaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        if(userProfile && setUserProfile) {
+            const newPersona = e.target.value as StudyBuddyPersona;
+            setUserProfile({ ...userProfile, studyBuddyPersona: newPersona });
+            toast.success(`Switched to ${newPersona.charAt(0).toUpperCase() + newPersona.slice(1)} persona!`);
+        }
+    }
+
     return (
         <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
-            <header className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <header className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-4 flex-shrink-0">
                 <div>
                     <h2 className="text-2xl font-bold">AI Tutor</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Ask a question or upload files (JPG, PNG, PDF).</p>
                 </div>
-                <button 
-                    onClick={handleGenerateConceptMap}
-                    disabled={isMapLoading || messages.length < 2}
-                    className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
-                    title="Generate a concept map from this conversation"
-                >
-                    {isMapLoading ? 'Generating...' : 'Concept Map'}
-                </button>
+                <div className="flex items-center gap-2">
+                    <select
+                        value={userProfile?.studyBuddyPersona || 'tutor'}
+                        onChange={handlePersonaChange}
+                        className="p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm"
+                        title="Change AI Persona"
+                    >
+                        <option value="tutor">🧑‍🏫 Tutor</option>
+                        <option value="encourager">🤗 Encourager</option>
+                        <option value="challenger">🧐 Challenger</option>
+                    </select>
+                    <button 
+                        onClick={handleGenerateConceptMap}
+                        disabled={isMapLoading || messages.length < 2}
+                        className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
+                        title="Generate a concept map from this conversation"
+                    >
+                        {isMapLoading ? 'Generating...' : 'Concept Map'}
+                    </button>
+                </div>
             </header>
             <div className="flex-1 p-4 overflow-y-auto space-y-4">
                 {messages.map((msg) => (
@@ -281,10 +319,13 @@ const AdaptiveTutor: React.FC = () => {
                             <MessageContent text={msg.text} />
                             {msg.sender === 'model' && (
                                 <div className="absolute -top-3 -right-3 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleExplainSimply(msg)} title="Explain Simply" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">
+                                        ✨
+                                    </button>
                                     <button onClick={() => handleAddToTimeline(msg)} title="Add to Timeline" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">
                                         🗓️
                                     </button>
-                                    <button onClick={() => handleCreateFlashcard(msg)} title="Create Flashcard" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">
+                                    <button onClick={() => handleCreateFlashcards(msg)} title="Create Flashcard" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">
                                         🃏
                                     </button>
                                 </div>
@@ -301,7 +342,7 @@ const AdaptiveTutor: React.FC = () => {
                 )}
                 <div ref={messagesEndRef} />
             </div>
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
                 <div className="space-y-2 mb-2">
                     {files.map((file, index) => (
                          <div key={index} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 p-2 rounded-md">

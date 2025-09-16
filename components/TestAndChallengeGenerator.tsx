@@ -1,8 +1,9 @@
 
+
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateTestQuestions } from '../services/geminiService';
-import type { Question, TestRecord, TestTimelineEntry } from '../types';
+import type { Question, TestRecord, TestTimelineEntry, UserProfile } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
 
@@ -10,7 +11,7 @@ type Mode = 'test' | 'challenge';
 const TIME_PER_QUESTION = 20; // 20 seconds per question for challenges
 
 const TestAndChallengeGenerator: React.FC = () => {
-    const { userProfile, setUserProfile, updateMastery } = useContext(AppContext);
+    const { userProfile, setUserProfile, updateMastery, addXP } = useContext(AppContext);
     const [mode, setMode] = useState<Mode>('test');
     
     // Common state
@@ -20,10 +21,7 @@ const TestAndChallengeGenerator: React.FC = () => {
     const [answers, setAnswers] = useState<string[]>([]);
     const [isFinished, setIsFinished] = useState(false);
     const [score, setScore] = useState(0);
-
-    // Test-specific state
     const [numQuestions, setNumQuestions] = useState(5);
-    const [subject, setSubject] = useState('General');
 
     // Challenge-specific state
     const [timeLeft, setTimeLeft] = useState(0);
@@ -46,7 +44,7 @@ const TestAndChallengeGenerator: React.FC = () => {
     }, [timeLeft, mode, currentQuiz, isFinished]);
 
     const handleGenerate = async () => {
-        if (!topic || !userProfile) {
+        if (!topic || !userProfile || !setUserProfile) {
             toast.error("Please enter a topic.");
             return;
         }
@@ -55,10 +53,15 @@ const TestAndChallengeGenerator: React.FC = () => {
         setIsFinished(false);
         setAnswers([]);
         try {
-            const questionCount = mode === 'test' ? numQuestions : 5;
-            const questions = await generateTestQuestions(subject, userProfile.board, topic, questionCount);
+            // Use a quiz ticket if a 20-question test is selected
+            if (numQuestions === 20 && userProfile.customQuizTickets > 0) {
+                setUserProfile({ ...userProfile, customQuizTickets: userProfile.customQuizTickets - 1 });
+                toast.success('Used 1 Custom Quiz Ticket.', { icon: '🎟️' });
+            }
+
+            const questions = await generateTestQuestions("General", userProfile.board, topic, numQuestions);
             setCurrentQuiz(questions);
-            setAnswers(new Array(questionCount).fill(''));
+            setAnswers(new Array(numQuestions).fill(''));
             if (mode === 'challenge') {
                 setTimeLeft(questions.length * TIME_PER_QUESTION);
             }
@@ -77,54 +80,74 @@ const TestAndChallengeGenerator: React.FC = () => {
     };
     
     const handleSubmit = () => {
-        if (!currentQuiz || !userProfile || !setUserProfile) return;
+        if (!currentQuiz || !userProfile || !setUserProfile || !addXP) return;
         
         let correctAnswers = 0;
-        const questionsWithUserAnswers = currentQuiz.map((q, i) => ({
-            ...q,
-            userAnswer: answers[i],
-            isCorrect: q.correctAnswer === answers[i],
-            explanation: q.explanation || `The correct answer is ${q.correctAnswer}.`
-        }));
-        
-        questionsWithUserAnswers.forEach(q => {
-            if (q.isCorrect) correctAnswers++;
+        let updatedProfile = { ...userProfile };
+
+        const questionsWithUserAnswers = currentQuiz.map((q, i) => {
+            const isCorrect = q.correctAnswer === answers[i];
+            if (isCorrect) correctAnswers++;
+            
+            // Concept Streak Logic
+            const currentStreak = updatedProfile.conceptStreaks[topic] || 0;
+            if (isCorrect) {
+                 const newStreak = currentStreak + 1;
+                 updatedProfile.conceptStreaks[topic] = newStreak;
+                 if ([3, 5, 10].includes(newStreak)) {
+                     const bonusXP = newStreak * 5;
+                     addXP(bonusXP, `🔥 ${topic} streak of ${newStreak}`);
+                 }
+            } else {
+                if (currentStreak > 0) {
+                    toast.error(`Streak for ${topic} lost. Keep trying!`, { icon: '💔' });
+                }
+                updatedProfile.conceptStreaks[topic] = 0;
+            }
+
+            return {
+                ...q,
+                userAnswer: answers[i],
+                isCorrect: isCorrect,
+                explanation: q.explanation || `The correct answer is ${q.correctAnswer}.`
+            };
         });
         
         const finalScore = Math.round((correctAnswers / currentQuiz.length) * 100);
         setScore(finalScore);
         setIsFinished(true);
 
-        if (mode === 'test') {
-            updateMastery(topic, finalScore);
-            toast.success(`Updated mastery for ${topic} to ${finalScore}%!`);
+        // Update mastery regardless of mode
+        if (updateMastery) updateMastery(topic, finalScore);
 
-            const testId = uuidv4();
-            const newTestRecord: TestRecord = {
-                testId, subject: topic, board: userProfile.board, questions: questionsWithUserAnswers,
-                score: finalScore, dateTaken: new Date().toISOString(), totalQuestions: currentQuiz.length,
-                correctAnswers, incorrectAnswers: currentQuiz.length - correctAnswers
-            };
-            
-            const newTimelineEntry: TestTimelineEntry = {
-                id: uuidv4(), type: 'test' as const, title: `Test Completed: ${topic}`,
-                description: `Scored ${correctAnswers}/${currentQuiz.length} (${finalScore}%)`, date: new Date().toISOString(),
-                details: { testId, score: finalScore, topic, correctAnswers, totalQuestions: currentQuiz.length, subject: topic }
-            };
-            
-            const updatedProfile = { ...userProfile, tests: [...userProfile.tests, newTestRecord],
-                timeline: [newTimelineEntry, ...userProfile.timeline].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) };
-            setUserProfile(updatedProfile);
+        const testId = uuidv4();
+        const testSubject = mode === 'challenge' ? `Challenge: ${topic}` : topic;
+        const newTestRecord: TestRecord = {
+            testId, subject: testSubject, board: userProfile.board, questions: questionsWithUserAnswers,
+            score: finalScore, dateTaken: new Date().toISOString(), totalQuestions: currentQuiz.length,
+            correctAnswers, incorrectAnswers: currentQuiz.length - correctAnswers, isChallenge: mode === 'challenge'
+        };
+        
+        const newTimelineEntry: TestTimelineEntry = {
+            id: uuidv4(), type: 'test' as const, title: `${mode === 'test' ? 'Test' : 'Challenge'} Completed: ${topic}`,
+            description: `Scored ${correctAnswers}/${currentQuiz.length} (${finalScore}%)`, date: new Date().toISOString(),
+            details: { testId, score: finalScore, topic, correctAnswers, totalQuestions: currentQuiz.length, subject: testSubject }
+        };
+
+        updatedProfile.tests.push(newTestRecord);
+        updatedProfile.timeline = [newTimelineEntry, ...updatedProfile.timeline].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        if (mode === 'test') {
             toast.success(`Test submitted! Your score is ${correctAnswers}/${currentQuiz.length} (${finalScore}%)`);
         } else { // Challenge mode
              if (finalScore >= 80) { // Win condition
-                const xpEarned = 75;
-                setUserProfile({ ...userProfile, XP: userProfile.XP + xpEarned });
-                toast.success(`Challenge won! You scored ${finalScore}% and earned ${xpEarned} XP!`, { icon: '🏆' });
+                addXP(75, 'Challenge Won! 🏆');
             } else {
                 toast.error(`Challenge lost. You scored ${finalScore}%. Try again!`, { icon: '💔' });
             }
         }
+        
+        setUserProfile(updatedProfile);
     };
     
     const startNew = () => {
@@ -223,27 +246,28 @@ const TestAndChallengeGenerator: React.FC = () => {
                 </div>
 
                 <h2 className="text-xl font-bold pt-4">{mode === 'test' ? 'Create a New Test' : 'Start a New Challenge'}</h2>
-                {mode === 'challenge' && <p className="text-sm text-gray-500 dark:text-gray-400">Face a timed, 5-question quiz. Score 80% or higher to win bonus XP!</p>}
+                {mode === 'challenge' && <p className="text-sm text-gray-500 dark:text-gray-400">Face a timed quiz. Score 80% or higher to win bonus XP!</p>}
 
                 <div>
                     <label htmlFor="topic" className="block text-sm font-medium mb-1">Topic</label>
                     <input id="topic" type="text" value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g., Photosynthesis" className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-green-500 focus:border-green-500" />
                 </div>
-                {mode === 'test' && (
-                    <div>
-                        <label htmlFor="numQuestions" className="block text-sm font-medium mb-1">Number of Questions</label>
-                        <select id="numQuestions" value={numQuestions} onChange={e => setNumQuestions(parseInt(e.target.value))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-green-500 focus:border-green-500">
-                            <option value={5}>5</option><option value={10}>10</option><option value={15}>15</option>
-                        </select>
-                    </div>
-                )}
+                <div>
+                    <label htmlFor="numQuestions" className="block text-sm font-medium mb-1">Number of Questions</label>
+                    <select id="numQuestions" value={numQuestions} onChange={e => setNumQuestions(parseInt(e.target.value))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-green-500 focus:border-green-500">
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        {userProfile && userProfile.customQuizTickets > 0 && <option value={20}>20 (Uses 1 Ticket)</option>}
+                    </select>
+                </div>
                 <button onClick={handleGenerate} disabled={isLoading} className={`w-full py-3 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400 ${mode === 'test' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
                     {isLoading ? 'Generating...' : (mode === 'test' ? 'Generate Test' : 'Start Challenge')}
                 </button>
             </div>
             
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                <h2 className="text-xl font-bold mb-4">Past Tests</h2>
+                <h2 className="text-xl font-bold mb-4">Past Tests & Challenges</h2>
                 <ul className="space-y-3">
                     {userProfile && userProfile.tests.length > 0 ? (
                         userProfile.tests.slice().reverse().map(test => (
