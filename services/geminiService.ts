@@ -409,3 +409,22 @@ export const generateDashboardInsight = async (userProfile: UserProfile): Promis
     // Return only the first line of the response to ensure it's a single sentence.
     return response.text.split('\n')[0];
 };
+
+export const getMistakeExplanation = async (question: string, userAnswer: string, correctAnswer: string, options: string[]): Promise<string> => {
+    const ai = getAi();
+    const prompt = `You are a helpful and encouraging AI tutor. A student has answered a multiple-choice question incorrectly. Your task is to explain their mistake in a way that helps them learn. Do not just give the right answer, but explain the *reasoning* behind the user's likely misconception.
+
+    **Question:** ${question}
+    **Options:** ${options.join(', ')}
+    **Student's (Incorrect) Answer:** ${userAnswer}
+    **Correct Answer:** ${correctAnswer}
+
+    Please provide a concise explanation that addresses why the student's answer might have seemed plausible but is ultimately incorrect, and then clarify the concept that leads to the correct answer.`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+    
+    return response.text;
+};

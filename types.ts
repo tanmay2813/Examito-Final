@@ -11,6 +11,7 @@ export enum View {
     STORE = 'STORE',
     STUDY_PLAN = 'STUDY_PLAN',
     STUDY_ZONE = 'STUDY_ZONE',
+    LEADERBOARD = 'LEADERBOARD',
 }
 
 export interface Flashcard {

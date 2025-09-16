@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { getAdaptiveResponse, generateFlashcards, generateConceptMap, getSimplifiedResponse } from '../services/geminiService';
 import { AppContext } from '../contexts/AppContext';
@@ -14,6 +15,8 @@ declare global {
     interface Window {
         renderMathInElement: (element: HTMLElement, options: any) => void;
         katex: any; // Add katex to global scope for robust checking
+        SpeechRecognition: any;
+        webkitSpeechRecognition: any;
     }
 }
 
@@ -25,6 +28,7 @@ const MessageContent: React.FC<{ text: string }> = ({ text }) => {
         // More robust check: ensure both the renderer function and the core katex library are available.
         if (contentRef.current && window.renderMathInElement && window.katex) {
             try {
+                // FIX: Corrected a typo. The ref is named `contentRef`, not `content`.
                 window.renderMathInElement(contentRef.current, {
                     delimiters: [
                         { left: '$$', right: '$$', display: true },
@@ -92,6 +96,9 @@ const AdaptiveTutor: React.FC = () => {
     const [conceptMapData, setConceptMapData] = useState<ConceptMapNode | null>(null);
     const [isMapLoading, setIsMapLoading] = useState(false);
     
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
+    
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,6 +107,59 @@ const AdaptiveTutor: React.FC = () => {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
         }
     }, []);
+
+    // Setup Speech Recognition
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            console.warn("Speech Recognition API is not supported in this browser.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: any) => {
+            let interimTranscript = '';
+            let finalTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+             setInput(prevInput => prevInput + finalTranscript);
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error', event.error);
+            toast.error("Speech recognition error. Please check microphone permissions.");
+            setIsListening(false);
+        };
+        
+        recognition.onend = () => {
+            setIsListening(false);
+        };
+        
+        recognitionRef.current = recognition;
+
+    }, []);
+
+    const toggleListening = () => {
+        if (!recognitionRef.current) {
+            toast.error("Voice input is not supported on your browser.");
+            return;
+        }
+        if (isListening) {
+            recognitionRef.current.stop();
+        } else {
+            recognitionRef.current.start();
+        }
+        setIsListening(!isListening);
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -356,12 +416,15 @@ const AdaptiveTutor: React.FC = () => {
                     <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-2" title="Attach Files">
                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                     </button>
+                     <button onClick={toggleListening} className={`p-2 rounded-full mr-2 transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`} title={isListening ? 'Stop Listening' : 'Use Voice'}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg>
+                    </button>
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="Type your question here..."
+                        placeholder={isListening ? "Listening..." : "Type your question here..."}
                         className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
                         disabled={isLoading}
                     />

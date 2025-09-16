@@ -1,5 +1,7 @@
 {
   "name": "Examito",
   "description": "An adaptive learning platform that uses AI to provide personalized tutoring, file analysis, test generation, progress reporting, and gamification for students.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

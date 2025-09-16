@@ -1,6 +1,6 @@
 
 
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { View } from '../types';
 import { AppContext } from '../contexts/AppContext';
@@ -15,6 +15,7 @@ import { AchievementIcon } from './icons/AchievementIcon';
 import { StoreIcon } from './icons/StoreIcon';
 import { StudyPlannerIcon } from './icons/StudyPlannerIcon';
 import { StudyZoneIcon } from './icons/StudyZoneIcon';
+import { LeaderboardIcon } from './icons/LeaderboardIcon';
 
 
 interface SidebarProps {
@@ -26,6 +27,18 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
     const { userProfile, setUserProfile } = useContext(AppContext);
+    const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark'));
+
+    useEffect(() => {
+        const root = window.document.documentElement;
+        if (isDarkMode) {
+            root.classList.add('dark');
+            localStorage.setItem('examito-theme', 'dark');
+        } else {
+            root.classList.remove('dark');
+            localStorage.setItem('examito-theme', 'light');
+        }
+    }, [isDarkMode]);
 
     const navItems = [
         { view: View.DASHBOARD, label: 'Dashboard', icon: DashboardIcon },
@@ -36,6 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
         { view: View.REPORTS, label: 'Reports', icon: ReportIcon },
         { view: View.TIMELINE, label: 'Timeline', icon: TimelineIcon },
         { view: View.STUDY_ZONE, label: 'Study Zone', icon: StudyZoneIcon },
+        { view: View.LEADERBOARD, label: 'Leaderboard', icon: LeaderboardIcon },
         { view: View.ACHIEVEMENTS, label: 'Achievements', icon: AchievementIcon },
         { view: View.STORE, label: 'Store', icon: StoreIcon },
     ];
@@ -84,7 +98,22 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
                         );
                     })}
                 </nav>
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                     <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Dark Mode</span>
+                        <button
+                            onClick={() => setIsDarkMode(!isDarkMode)}
+                            className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
+                                isDarkMode ? 'bg-green-500' : 'bg-gray-300'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${
+                                    isDarkMode ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
                      <button 
                         onClick={handleLogout}
                         className="w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors duration-200"

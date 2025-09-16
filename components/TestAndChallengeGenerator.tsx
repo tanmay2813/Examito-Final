@@ -1,13 +1,13 @@
 
 
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
-import { generateTestQuestions } from '../services/geminiService';
+import { generateTestQuestions, getMistakeExplanation } from '../services/geminiService';
 import type { Question, TestRecord, TestTimelineEntry, UserProfile } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
 
-type Mode = 'test' | 'challenge';
+type Mode = 'test' | 'challenge' | 'mistakes';
 const TIME_PER_QUESTION = 20; // 20 seconds per question for challenges
 
 const TestAndChallengeGenerator: React.FC = () => {
@@ -22,9 +22,24 @@ const TestAndChallengeGenerator: React.FC = () => {
     const [isFinished, setIsFinished] = useState(false);
     const [score, setScore] = useState(0);
     const [numQuestions, setNumQuestions] = useState(5);
+    const [mistakeExplanations, setMistakeExplanations] = useState<{ [key: number]: string }>({});
+    const [isExplaining, setIsExplaining] = useState<number | null>(null);
 
     // Challenge-specific state
     const [timeLeft, setTimeLeft] = useState(0);
+
+    const pastMistakes = useMemo(() => {
+        if (!userProfile) return [];
+        const incorrectQuestions = new Map<string, Question>();
+        userProfile.tests.forEach(test => {
+            test.questions.forEach(q => {
+                if (q.isCorrect === false) {
+                    incorrectQuestions.set(q.questionText, q);
+                }
+            });
+        });
+        return Array.from(incorrectQuestions.values());
+    }, [userProfile]);
 
     // Timer logic for challenges
     useEffect(() => {
@@ -72,6 +87,18 @@ const TestAndChallengeGenerator: React.FC = () => {
             setIsLoading(false);
         }
     };
+
+    const handleGenerateMistakesQuiz = () => {
+        if (pastMistakes.length < 1) {
+            toast.error("You don't have any past mistakes to review yet!");
+            return;
+        }
+        setMode('mistakes');
+        setTopic("Past Mistakes");
+        setCurrentQuiz(pastMistakes);
+        setAnswers(new Array(pastMistakes.length).fill(''));
+        setIsFinished(false);
+    };
     
     const handleAnswerChange = (questionIndex: number, answer: string) => {
         const newAnswers = [...answers];
@@ -89,21 +116,24 @@ const TestAndChallengeGenerator: React.FC = () => {
             const isCorrect = q.correctAnswer === answers[i];
             if (isCorrect) correctAnswers++;
             
-            // Concept Streak Logic
-            const currentStreak = updatedProfile.conceptStreaks[topic] || 0;
-            if (isCorrect) {
-                 const newStreak = currentStreak + 1;
-                 updatedProfile.conceptStreaks[topic] = newStreak;
-                 if ([3, 5, 10].includes(newStreak)) {
-                     const bonusXP = newStreak * 5;
-                     addXP(bonusXP, `🔥 ${topic} streak of ${newStreak}`);
-                 }
-            } else {
-                if (currentStreak > 0) {
-                    toast.error(`Streak for ${topic} lost. Keep trying!`, { icon: '💔' });
+            // Concept Streak Logic (only for regular tests)
+            if(mode === 'test' || mode === 'challenge') {
+                const currentStreak = updatedProfile.conceptStreaks[topic] || 0;
+                if (isCorrect) {
+                     const newStreak = currentStreak + 1;
+                     updatedProfile.conceptStreaks[topic] = newStreak;
+                     if ([3, 5, 10].includes(newStreak)) {
+                         const bonusXP = newStreak * 5;
+                         addXP(bonusXP, `🔥 ${topic} streak of ${newStreak}`);
+                     }
+                } else {
+                    if (currentStreak > 0) {
+                        toast.error(`Streak for ${topic} lost. Keep trying!`, { icon: '💔' });
+                    }
+                    updatedProfile.conceptStreaks[topic] = 0;
                 }
-                updatedProfile.conceptStreaks[topic] = 0;
             }
+
 
             return {
                 ...q,
@@ -117,8 +147,10 @@ const TestAndChallengeGenerator: React.FC = () => {
         setScore(finalScore);
         setIsFinished(true);
 
-        // Update mastery regardless of mode
-        if (updateMastery) updateMastery(topic, finalScore);
+        // Update mastery (don't update for mistakes quiz as it skews data)
+        if ((mode === 'test' || mode === 'challenge') && updateMastery) {
+            updateMastery(topic, finalScore);
+        }
 
         const testId = uuidv4();
         const testSubject = mode === 'challenge' ? `Challenge: ${topic}` : topic;
@@ -137,7 +169,7 @@ const TestAndChallengeGenerator: React.FC = () => {
         updatedProfile.tests.push(newTestRecord);
         updatedProfile.timeline = [newTimelineEntry, ...updatedProfile.timeline].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        if (mode === 'test') {
+        if (mode === 'test' || mode === 'mistakes') {
             toast.success(`Test submitted! Your score is ${correctAnswers}/${currentQuiz.length} (${finalScore}%)`);
         } else { // Challenge mode
              if (finalScore >= 80) { // Win condition
@@ -149,11 +181,26 @@ const TestAndChallengeGenerator: React.FC = () => {
         
         setUserProfile(updatedProfile);
     };
+
+    const handleExplainMistake = async (q: Question, userAnswer: string, questionIndex: number) => {
+        setIsExplaining(questionIndex);
+        try {
+            const explanation = await getMistakeExplanation(q.questionText, userAnswer, q.correctAnswer, q.options);
+            setMistakeExplanations(prev => ({ ...prev, [questionIndex]: explanation }));
+        } catch (error) {
+            console.error(error);
+            toast.error("Couldn't get explanation. Please try again.");
+        } finally {
+            setIsExplaining(null);
+        }
+    };
     
     const startNew = () => {
         setCurrentQuiz(null);
         setIsFinished(false);
         setTopic('');
+        setMode('test');
+        setMistakeExplanations({});
     };
 
     const renderQuizTakingScreen = () => (
@@ -213,6 +260,24 @@ const TestAndChallengeGenerator: React.FC = () => {
                                 {!isCorrect && answers[index] && (<p className="mt-2 text-sm text-red-600 dark:text-red-400">Your answer: {answers[index]}</p>)}
                                 <p className="mt-2 text-sm text-green-700 dark:text-green-400"><span className="font-semibold">Correct answer:</span> {q.correctAnswer}</p>
                                 {q.explanation && (<div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-md"><p className="text-sm font-medium text-blue-800 dark:text-blue-200">Explanation:</p><p className="text-sm text-blue-700 dark:text-blue-300">{q.explanation}</p></div>)}
+                                {!isCorrect && (
+                                     <div className="mt-3">
+                                        {mistakeExplanations[index] ? (
+                                            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-md">
+                                                <p className="text-sm font-medium text-indigo-800 dark:text-indigo-200">🤖 AI Insight:</p>
+                                                <p className="text-sm text-indigo-700 dark:text-indigo-300 whitespace-pre-wrap">{mistakeExplanations[index]}</p>
+                                            </div>
+                                        ) : (
+                                            <button 
+                                                onClick={() => handleExplainMistake(q, answers[index], index)}
+                                                disabled={isExplaining === index}
+                                                className="px-3 py-1 bg-indigo-500 text-white text-xs font-semibold rounded-md hover:bg-indigo-600 disabled:bg-gray-400"
+                                            >
+                                                {isExplaining === index ? 'Thinking...' : '🤖 Explain My Mistake'}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
@@ -233,7 +298,7 @@ const TestAndChallengeGenerator: React.FC = () => {
 
     if (currentQuiz && !isFinished) return renderQuizTakingScreen();
     if (isFinished) {
-        return mode === 'test' ? renderTestFinishedScreen() : renderChallengeFinishedScreen();
+        return (mode === 'test' || mode === 'mistakes') ? renderTestFinishedScreen() : renderChallengeFinishedScreen();
     }
     
     return (
@@ -264,6 +329,18 @@ const TestAndChallengeGenerator: React.FC = () => {
                 <button onClick={handleGenerate} disabled={isLoading} className={`w-full py-3 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400 ${mode === 'test' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
                     {isLoading ? 'Generating...' : (mode === 'test' ? 'Generate Test' : 'Start Challenge')}
                 </button>
+            </div>
+             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                <h2 className="text-xl font-bold mb-2">Review & Reinforce</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Target your weak spots by taking a quiz on questions you've previously answered incorrectly.</p>
+                <button 
+                    onClick={handleGenerateMistakesQuiz} 
+                    disabled={pastMistakes.length < 3}
+                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                    Challenge Past Mistakes ({pastMistakes.length} available)
+                </button>
+                {pastMistakes.length < 3 && <p className="text-xs text-center mt-2 text-gray-500">Complete more tests to unlock this feature (min. 3 mistakes needed).</p>}
             </div>
             
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">

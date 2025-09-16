@@ -1,4 +1,5 @@
 
+
 import React, { useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 
@@ -9,13 +10,13 @@ const Leaderboard: React.FC = () => {
         if (!userProfile) return [];
 
         const otherUsers = [
-            { name: 'Saanvi J.', XP: 1450 },
+            { name: 'Saanvi J.', XP: 2450 },
             { name: 'Tanmay G.', XP: 2100 },
-            { name: 'Alex R.', XP: 890 },
+            { name: 'Alex R.', XP: 1890 },
             { name: 'Maria S.', XP: 1720 },
-            { name: 'Kenji T.', XP: 550 },
-            { name: 'Chloe B.', XP: 1980 },
-            { name: 'Liam P.', XP: 320 },
+            { name: 'Kenji T.', XP: 1550 },
+            { name: 'Chloe B.', XP: 1280 },
+            { name: 'Liam P.', XP: 920 },
             { name: 'Fatima A.', XP: 1150 },
             { name: 'Noah L.', XP: 1600 },
         ];

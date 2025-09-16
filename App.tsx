@@ -15,6 +15,7 @@ import Achievements from './components/Achievements';
 import Store from './components/Store';
 import StudyPlanner from './components/StudyPlanner';
 import StudyZone from './components/StudyZone';
+import Leaderboard from './components/Leaderboard';
 import { View } from './types';
 import { Toaster } from 'react-hot-toast';
 
@@ -45,6 +46,8 @@ const AppContent: React.FC = () => {
                 return <StudyPlanner />;
             case View.STUDY_ZONE:
                 return <StudyZone />;
+            case View.LEADERBOARD:
+                return <Leaderboard />;
             default:
                 return <Dashboard setActiveView={setActiveView} />;
         }

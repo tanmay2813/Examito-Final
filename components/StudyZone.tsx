@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
@@ -40,7 +41,8 @@ const StudyZone: React.FC = () => {
     }, [pomodoroMins, shortBreakMins, longBreakMins]);
 
     useEffect(() => {
-        let interval: NodeJS.Timeout | null = null;
+        // FIX: Replaced NodeJS.Timeout with a more portable type that works in both browser and Node environments.
+        let interval: ReturnType<typeof setInterval> | null = null;
         if (isActive && timeLeft > 0) {
             interval = setInterval(() => {
                 setTimeLeft(time => time - 1);

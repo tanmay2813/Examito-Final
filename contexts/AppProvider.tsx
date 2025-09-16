@@ -53,11 +53,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (profile) {
             const newlyAwardedAchievements = checkAndAwardAchievements(profile);
             if (newlyAwardedAchievements.length > 0) {
+                let xpFromAchievements = 0;
                 newlyAwardedAchievements.forEach(ach => {
                     toast.success(`Achievement Unlocked: ${ach.name}!`, { icon: ach.icon, duration: 4000 });
                     profile.achievements.push(ach);
-                    profile.XP += 50; // Base XP for any achievement
+                    xpFromAchievements += 50; // Base XP for any achievement
                 });
+
+                 if (xpFromAchievements > 0) {
+                    let finalAmount = xpFromAchievements;
+                    const doubleXpActive = profile.doubleXpUntil && new Date(profile.doubleXpUntil) > new Date();
+
+                    if (doubleXpActive) {
+                        finalAmount *= 2;
+                        toast.success(`+${finalAmount} XP from achievements (2x Boost!)`, { icon: '🚀' });
+                    } else {
+                        toast.success(`+${finalAmount} XP from achievements!`, { icon: '⭐' });
+                    }
+                    profile.XP += finalAmount;
+                }
             }
         }
         setUserProfileState(profile);
