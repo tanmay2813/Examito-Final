@@ -1,6 +1,6 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 
 type TimerMode = 'pomodoro' | 'shortBreak' | 'longBreak';
 
@@ -20,15 +20,6 @@ const StudyZone: React.FC = () => {
     const [isActive, setIsActive] = useState(false);
     const [timeLeft, setTimeLeft] = useState(pomodoroMins * 60);
     const [pomodoros, setPomodoros] = useState(0);
-
-    const [playingSound, setPlayingSound] = useState<string | null>(null);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-
-    const sounds = {
-        rain: 'https://cdn.pixabay.com/audio/2022/08/10/audio_16882759c6.mp3',
-        library: 'https://cdn.pixabay.com/audio/2022/02/21/audio_1896892a3f.mp3',
-        cafe: 'https://cdn.pixabay.com/audio/2022/06/27/audio_845f082e1b.mp3',
-    };
 
     const handleModeChange = (newMode: TimerMode) => {
         setMode(newMode);
@@ -83,21 +74,6 @@ const StudyZone: React.FC = () => {
         }
     }, []);
 
-    const toggleSound = (sound: string) => {
-        if (playingSound === sound) {
-            audioRef.current?.pause();
-            setPlayingSound(null);
-        } else {
-            const soundUrl = sounds[sound as keyof typeof sounds];
-            if (audioRef.current) {
-                audioRef.current.src = soundUrl;
-                audioRef.current.play().catch(e => console.error("Audio play failed", e));
-            }
-            setPlayingSound(sound);
-        }
-    };
-
-
     return (
         <div className="space-y-6 flex flex-col items-center text-center">
             <h1 className="text-3xl sm:text-4xl font-bold">Study Zone</h1>
@@ -140,16 +116,6 @@ const StudyZone: React.FC = () => {
                         <input type="number" id="long-break-time" value={longBreakMins} onChange={e => setLongBreakMins(parseInt(e.target.value))} className="w-full p-2 mt-1 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-center" />
                     </div>
                 </div>
-            </div>
-            
-             <div className="w-full max-w-md bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                <h2 className="text-xl font-bold mb-4">Ambient Sounds</h2>
-                <div className="flex justify-around">
-                    <button onClick={() => toggleSound('rain')} className={`text-4xl p-3 rounded-full ${playingSound === 'rain' ? 'bg-blue-200 dark:bg-blue-800' : ''}`}>🌧️</button>
-                    <button onClick={() => toggleSound('library')} className={`text-4xl p-3 rounded-full ${playingSound === 'library' ? 'bg-blue-200 dark:bg-blue-800' : ''}`}>🤫</button>
-                    <button onClick={() => toggleSound('cafe')} className={`text-4xl p-3 rounded-full ${playingSound === 'cafe' ? 'bg-blue-200 dark:bg-blue-800' : ''}`}>☕</button>
-                </div>
-                <audio ref={audioRef} loop />
             </div>
         </div>
     );

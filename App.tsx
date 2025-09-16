@@ -63,9 +63,9 @@ const AppContent: React.FC = () => {
             {userProfile ? (
                 <>
                     <Sidebar activeView={activeView} setActiveView={setActiveView} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-                    <main className={`flex-1 p-4 md:p-6 ${activeView === View.TUTOR ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
+                    <main className={`flex-1 p-4 md:p-6 flex flex-col ${activeView === View.TUTOR ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
                          <button
-                            className="md:hidden p-2 mb-4 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            className="md:hidden p-2 mb-4 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0"
                             onClick={() => setIsSidebarOpen(true)}
                             aria-label="Open sidebar"
                         >
@@ -73,7 +73,9 @@ const AppContent: React.FC = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                             </svg>
                         </button>
-                        {renderView()}
+                        <div className="flex-1 min-h-0">
+                            {renderView()}
+                        </div>
                     </main>
                 </>
             ) : (
