@@ -1,7 +1,8 @@
 
 
+
 import { GoogleGenAI, Type } from "@google/genai";
-import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, ConceptMapNode, StudyBuddyPersona, StudyPlan } from '../types';
+import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, StudyBuddyPersona, StudyPlan, LearningStyle } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -17,21 +18,31 @@ const getAi = (): GoogleGenAI => {
 
 // --- PROMPTS and SCHEMAS ---
 
-const getTutorSystemInstruction = (board: string, persona: StudyBuddyPersona) => {
-    const baseInstruction = `You are Examito, an expert AI tutor for a student studying the ${board} curriculum.
+const getTutorSystemInstruction = (board: string, persona: StudyBuddyPersona, learningStyle: LearningStyle) => {
+    let baseInstruction = `You are Examito, an expert AI tutor for a student studying the ${board} curriculum.
 - **Math Formatting:** When writing mathematical equations or formulas, use LaTeX syntax. For block equations, enclose them in \`$$\`...\`$$\`. For inline equations, use \`$\`...\`$\`.
 - **Timeline Integration:** You can help users organize their studies. If a user asks to remember something or schedule a study session, respond ONLY with a JSON object inside <TIMELINE_ENTRY> tags. The JSON should have "title", "description", "date" (in YYYY-MM-DD format), and "reminderFrequency" ('daily', 'weekly', 'monthly', or 'none'). For example: <TIMELINE_ENTRY>{"title": "Review Photosynthesis", "description": "Go over the light-dependent and independent reactions.", "date": "2024-08-15", "reminderFrequency": "weekly"}</TIMELINE_ENTRY>. Do not add any text outside of the tag if you use it.
-- **File Analysis:** If provided with text from a file (like a PDF), or an image, use that content as the primary context for your response.`;
+- **File Analysis:** If provided with text from a file (like a PDF), or an image, use that content as the primary context for your response.
+- **Interactive Quizzing:** To check for understanding, you can occasionally embed a single multiple-choice question mini-quiz in your response. To do this, respond ONLY with a JSON object inside <QUIZ> tags. The JSON should be an array containing one question object with "questionText", "options" (4 of them), and "correctAnswer". Example: <QUIZ>[{"questionText": "What is the powerhouse of the cell?", "options": ["Mitochondria", "Nucleus", "Ribosome", "Chloroplast"], "correctAnswer": "Mitochondria"}]</QUIZ>. Do not add any text outside of the tag if you use it.`;
     
     switch(persona) {
         case 'encourager':
-            return `${baseInstruction}\n- **Persona: The Encourager.** Your primary goal is to be positive and build confidence. Use uplifting language. Celebrate small wins. When a student struggles, reassure them that it's okay and gently guide them. Frame feedback constructively.`;
+            baseInstruction += `\n- **Persona: The Encourager.** Your primary goal is to be positive and build confidence. Use uplifting language. Celebrate small wins. When a student struggles, reassure them that it's okay and gently guide them. Frame feedback constructively.`;
+            break;
         case 'challenger':
-            return `${baseInstruction}\n- **Persona: The Challenger.** Your primary goal is to push the student to think critically and deeply. Be more direct. After a correct answer, ask a difficult follow-up question to test their true understanding. Challenge their assumptions.`;
+            baseInstruction += `\n- **Persona: The Challenger.** Your primary goal is to push the student to think critically and deeply. Be more direct. After a correct answer, ask a difficult follow-up question to test their true understanding. Challenge their assumptions.`;
+            break;
         case 'tutor':
         default:
-            return `${baseInstruction}\n- **Persona: The Socratic Tutor.** Your primary goal is to foster deep understanding. Instead of providing direct answers, guide students with leading questions to help them arrive at the solution themselves. Only give a direct answer if the user explicitly asks for it or is clearly frustrated.`;
+            baseInstruction += `\n- **Persona: The Socratic Tutor.** Your primary goal is to foster deep understanding. Instead of providing direct answers, guide students with leading questions to help them arrive at the solution themselves. Only give a direct answer if the user explicitly asks for it or is clearly frustrated.`;
+            break;
     }
+
+    if (learningStyle !== 'none') {
+        baseInstruction += `\n- **Learning Style Adaptation:** The user has identified as a '${learningStyle}' learner. Tailor your explanations accordingly. For 'visual' learners, use descriptive language that helps them form mental images and suggest drawing diagrams. For 'read/write' learners, provide structured, text-heavy explanations. For 'aural' learners, suggest they read concepts aloud. For 'kinesthetic' learners, relate concepts to real-world, hands-on examples.`;
+    }
+    
+    return baseInstruction;
 };
 
 const questionSchema = {
@@ -80,22 +91,6 @@ const dailyGoalsSchema = {
     }
 };
 
-const conceptMapSchema: any = {
-    type: Type.OBJECT,
-    properties: {
-        topic: { type: Type.STRING, description: 'The central topic or root of the map.' },
-        children: {
-            type: Type.ARRAY,
-            description: 'An array of sub-topics or related concepts.',
-            items: {
-                // This creates a recursive schema structure for nested children
-                $ref: '#'
-            }
-        }
-    },
-    required: ['topic', 'children']
-};
-
 const studyPlanSchema = {
     type: Type.ARRAY,
     description: "A list of weekly plans.",
@@ -110,7 +105,9 @@ const studyPlanSchema = {
                     type: Type.OBJECT,
                     properties: {
                         day: { type: Type.STRING, description: "The day of the week (e.g., Monday)." },
-                        task: { type: Type.STRING, description: "The specific study task for that day." }
+                        task: { type: Type.STRING, description: "The specific study task for that day." },
+                        activity: { type: Type.STRING, description: "An optional suggested activity from this list: ['tutor', 'test', 'flashcards', 'read'] to help with the task.", optional: true },
+                        topic: { type: Type.STRING, description: "If an activity is suggested, this is the specific topic for that activity.", optional: true }
                     },
                     required: ["day", "task"]
                 }
@@ -131,7 +128,7 @@ export const getAdaptiveResponse = async (
 ): Promise<string> => {
     const ai = getAi();
     const model = 'gemini-2.5-flash';
-    const systemInstruction = getTutorSystemInstruction(userProfile.board, userProfile.studyBuddyPersona);
+    const systemInstruction = getTutorSystemInstruction(userProfile.board, userProfile.studyBuddyPersona, userProfile.learningStyle);
 
     const contents = history.map(msg => {
         const parts: any[] = [];
@@ -185,50 +182,14 @@ export const generateTestQuestions = async (subject: string, board: string, topi
         }
     });
 
-    const questions = JSON.parse(response.text);
-    return questions;
+    const jsonText = response.text.trim();
+    return JSON.parse(jsonText);
 };
 
-export const generateDailyQuestions = async (board: string): Promise<Question[]> => {
-    const ai = getAi();
-    const prompt = `Generate 5 multiple-choice questions on general knowledge topics suitable for a student studying the ${board} curriculum. The topics should be varied and interesting. Each question must have 4 options. Provide the correct answer and a brief explanation for each.`;
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.ARRAY,
-                items: questionSchema
-            }
-        }
-    });
-    
-    const questions = JSON.parse(response.text);
-    return questions;
-};
 
 export const generateProgressReport = async (userProfile: UserProfile): Promise<Omit<Report, 'reportId' | 'dateGenerated'>> => {
     const ai = getAi();
-    const testHistorySummary = userProfile.tests.map(t => ({
-        subject: t.subject,
-        score: t.score,
-        date: t.dateTaken,
-        correct: t.correctAnswers,
-        total: t.totalQuestions,
-        type: t.isChallenge ? 'Challenge' : 'Test'
-    }));
-
-    const prompt = `Analyze the following student data to generate a comprehensive progress report.
-    Student Name: ${userProfile.name}
-    Academic Board: ${userProfile.board}
-    Test History: ${JSON.stringify(testHistorySummary, null, 2)}
-
-    Based on this data, provide:
-    1. A list of strengths (topics where the student consistently scores well).
-    2. A list of areas for improvement (topics with lower scores or repeated mistakes).
-    3. A personalized, actionable step-by-step plan for the next week to address the areas for improvement. The plan should be encouraging and include specific study techniques or resources to try.`;
+    const prompt = `Based on the following user data, generate a progress report. The user is studying ${userProfile.board}. Analyze their test history and mastery scores. Identify clear strengths, areas for improvement, and provide an actionable, step-by-step plan for the next week. User data: ${JSON.stringify({ tests: userProfile.tests.slice(-5), mastery: userProfile.mastery })}`;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -239,18 +200,164 @@ export const generateProgressReport = async (userProfile: UserProfile): Promise<
         }
     });
 
-    const reportData = JSON.parse(response.text);
-    return reportData;
+    const jsonText = response.text.trim();
+    return JSON.parse(jsonText);
 };
 
+export const generateFlashcards = async (text: string): Promise<Omit<Flashcard, 'id' | 'dueDate' | 'interval' | 'easeFactor'>[]> => {
+    const ai = getAi();
+    const prompt = `Create flashcards based on the key concepts in this text. For each flashcard, provide a front (question/term), a back (answer/definition), and a general subject. Text: "${text}"`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.ARRAY,
+                items: flashcardSchema
+            }
+        }
+    });
+
+    const jsonText = response.text.trim();
+    return JSON.parse(jsonText);
+}
+
+export const getSimplifiedResponse = async (text: string): Promise<string> => {
+    const ai = getAi();
+    const prompt = `Explain the following concept in simpler terms, as if for a beginner: "${text}"`;
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+    return response.text;
+};
+
+
+export const generateDailyQuestions = async (board: string): Promise<Question[]> => {
+    const ai = getAi();
+    const prompt = `Generate 5 diverse, multiple-choice questions suitable for a quick daily challenge for a student studying the ${board} curriculum. The questions should cover a range of common subjects. Each question should have 4 options.`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        questionText: { type: Type.STRING },
+                        options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        correctAnswer: { type: Type.STRING }
+                    },
+                    required: ['questionText', 'options', 'correctAnswer']
+                }
+            }
+        }
+    });
+
+    const jsonText = response.text.trim();
+    return JSON.parse(jsonText);
+};
+
+export const generateDailyGoals = async (userProfile: UserProfile): Promise<DailyGoal[]> => {
+    const ai = getAi();
+    const prompt = `Generate 3 short, personalized daily goals for a student. Consider their recent activity if provided. The goals should be actionable and motivating. Assign an XP value between 10 and 50 for each. Recent topics: ${Object.keys(userProfile.mastery).join(', ')}`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: dailyGoalsSchema
+        }
+    });
+
+    const jsonText = response.text.trim();
+    const goalsData: { description: string, xp: number }[] = JSON.parse(jsonText);
+    return goalsData.map(g => ({ ...g, id: uuidv4(), isCompleted: false }));
+};
+
+export const getMistakeExplanation = async (question: string, userAnswer: string, correctAnswer: string, options: string[]): Promise<string> => {
+    const ai = getAi();
+    const prompt = `A student answered a question incorrectly. Explain the potential misconception behind their specific wrong answer.
+    Question: "${question}"
+    Options: ${options.join(', ')}
+    Student's incorrect answer: "${userAnswer}"
+    Correct answer: "${correctAnswer}"
+    Focus on why the student might have chosen their answer and gently guide them to the correct logic.`;
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+    return response.text;
+};
+
+export const generateSmartReviewSelection = async (userProfile: UserProfile, availableSubjects: string[]): Promise<string[]> => {
+    const ai = getAi();
+    const weakTopics = Object.entries(userProfile.mastery)
+        .filter(([, score]) => score < 75)
+        .map(([topic]) => topic);
+    
+    if (weakTopics.length === 0) return [];
+    
+    const prompt = `From this list of available flashcard subjects: [${availableSubjects.join(', ')}], which 2-3 subjects would be most beneficial for a student to review, given that their weakest topics are [${weakTopics.join(', ')}]? Respond with only a comma-separated list of the recommended subjects.`;
+
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+    return response.text.split(',').map(s => s.trim()).filter(Boolean);
+};
+
+export const generateDailyTeaser = async (board: string): Promise<string> => {
+    const ai = getAi();
+    const prompt = `Generate one short, fun, and interesting brain teaser or fun fact relevant to a student studying the ${board} curriculum. Make it engaging.`;
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+    return response.text;
+};
+
+export const generateDashboardInsight = async (userProfile: UserProfile): Promise<string> => {
+    const ai = getAi();
+    const prompt = `Based on this user's learning data, generate a single, concise, and encouraging insight for their dashboard. Highlight a recent success or a positive trend. Data: ${JSON.stringify({ streak: userProfile.streak, mastery: userProfile.mastery, recent_tests: userProfile.tests.slice(-3) })}`;
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+    return response.text;
+};
+
+export const generateStudyPlan = async (examName: string, examDate: string, topics: string[], board: string, startDate: string): Promise<{ plan: StudyPlan['plan'] }> => {
+    const ai = getAi();
+    const prompt = `Create a structured study plan for a student studying the ${board} curriculum.
+- Exam Name: ${examName}
+- Exam Date: ${examDate}
+- Plan Start Date: ${startDate}
+- Topics to Cover: ${topics.join(', ')}
+
+Break the plan into weeks. For each day of the week, provide a specific, actionable task. For some tasks, suggest a relevant in-app activity ('tutor', 'test', 'flashcards') and the corresponding 'topic' for that activity. This will help the user take direct action.`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    plan: studyPlanSchema,
+                },
+                required: ["plan"]
+            }
+        }
+    });
+    
+    const jsonText = response.text.trim();
+    return JSON.parse(jsonText);
+};
+
+// FIX: Added missing analyzeFileContent function to resolve import error in FileAnalyzer.tsx.
 export const analyzeFileContent = async (base64Data: string, mimeType: string, prompt: string): Promise<string> => {
     const ai = getAi();
+
     const imagePart = {
         inlineData: {
             mimeType,
             data: base64Data,
         },
     };
+
     const textPart = {
         text: prompt,
     };
@@ -260,171 +367,5 @@ export const analyzeFileContent = async (base64Data: string, mimeType: string, p
         contents: { parts: [imagePart, textPart] },
     });
 
-    return response.text;
-};
-
-export const generateFlashcards = async (text: string): Promise<Omit<Flashcard, 'id' | 'dueDate' | 'interval' | 'easeFactor'>[]> => {
-    const ai = getAi();
-    const prompt = `Based on the following text, create a set of 1 to 3 concise and relevant flashcards. For each, provide a 'front' (a question or term), a 'back' (the answer or definition), and identify the general 'subject'. Text: "${text}"`;
-
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.ARRAY,
-                items: flashcardSchema
-            },
-        }
-    });
-
-    return JSON.parse(response.text);
-};
-
-
-export const generateDailyGoals = async (userProfile: UserProfile): Promise<DailyGoal[]> => {
-    const ai = getAi();
-    const topics = userProfile.tests.map(t => t.subject).join(', ') || 'general knowledge';
-    const prompt = `Create exactly 3 short, achievable daily study goals for a student. The goals should be encouraging and related to these topics: ${topics}. One goal should be about reviewing a past topic, one about learning something new, and one related to practice.`;
-
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: dailyGoalsSchema,
-        }
-    });
-    
-    const goalData: { description: string, xp: number }[] = JSON.parse(response.text);
-    return goalData.map(g => ({
-        ...g,
-        id: uuidv4(),
-        isCompleted: false,
-    }));
-};
-
-export const generateConceptMap = async (history: Message[]): Promise<ConceptMapNode> => {
-    const ai = getAi();
-    const conversation = history
-        .filter(m => m.text && m.text.trim() !== '')
-        .map(m => `${m.sender}: ${m.text}`)
-        .join('\n');
-    
-    if (conversation.length < 50) {
-        throw new Error("Conversation is too short to generate a meaningful concept map.");
-    }
-    
-    const prompt = `Analyze the following conversation and generate a hierarchical concept map of the main topics and their sub-topics. The root node should be the main subject of the conversation. Keep topics concise.
-
-    Conversation:
-    ${conversation}`;
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: conceptMapSchema
-        }
-    });
-
-    return JSON.parse(response.text);
-};
-
-export const generateDailyTeaser = async (board: string): Promise<string> => {
-    const ai = getAi();
-    const prompt = `Generate a single, short, fun, and engaging brain teaser or "did you know?" fact suitable for a student studying the ${board} curriculum. Keep it under 200 characters.`;
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-    });
-    
-    return response.text;
-};
-
-export const getSimplifiedResponse = async (textToSimplify: string): Promise<string> => {
-    const ai = getAi();
-    const prompt = `Explain the following text in very simple terms, as if you were talking to a beginner who is new to the topic. Use analogies if they are helpful.
-
-    Text to simplify: "${textToSimplify}"`;
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-    });
-    
-    return `**✨ Here's a simpler take:**\n\n${response.text}`;
-};
-
-export const generateStudyPlan = async (examName: string, examDate: string, topics: string[], board: string, startDate: string): Promise<Pick<StudyPlan, 'plan'>> => {
-    const ai = getAi();
-    const prompt = `Create a structured, week-by-week study plan for a student studying the ${board} curriculum.
-    
-    - Exam Name: ${examName}
-    - Exam Date: ${examDate}
-    - Plan Start Date: ${startDate}
-    - Topics to Cover: ${topics.join(', ')}
-
-    The plan should be broken down into weeks, and each week should have tasks for Monday to Friday. Tasks should be specific and actionable (e.g., "Review Topic A flashcards", "Take a 10-question practice test on Topic B", "Read Chapter 3 on Topic C"). The plan should be realistic and build progressively from the start date.`;
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: studyPlanSchema
-        }
-    });
-
-    const planData = JSON.parse(response.text);
-    return { plan: planData };
-};
-
-export const generateDashboardInsight = async (userProfile: UserProfile): Promise<string> => {
-    const ai = getAi();
-    const testSummary = userProfile.tests.slice(-5).map(t => `- Scored ${t.score}% on ${t.subject} on ${new Date(t.dateTaken).toLocaleDateString()}`).join('\n');
-    const masterySummary = JSON.stringify(userProfile.mastery);
-    const prompt = `Analyze this student's recent activity and provide one short, encouraging, and actionable insight for their dashboard. The insight should be a single sentence.
-    
-    Recent Tests:
-    ${testSummary || "No recent tests."}
-    
-    Concept Mastery:
-    ${masterySummary}
-    
-    Example Insights:
-    "You're mastering Photosynthesis! Why not try a timed challenge to test your skills?"
-    "Great job on your recent tests! Remember to review your flashcards for Algebra to keep the concepts fresh."
-    "You've been studying consistently. Keep up the great work! Try the AI Tutor to explore a new topic today."
-    `;
-    
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-    });
-    
-    // Return only the first line of the response to ensure it's a single sentence.
-    return response.text.split('\n')[0];
-};
-
-export const getMistakeExplanation = async (question: string, userAnswer: string, correctAnswer: string, options: string[]): Promise<string> => {
-    const ai = getAi();
-    const prompt = `You are a helpful and encouraging AI tutor. A student has answered a multiple-choice question incorrectly. Your task is to explain their mistake in a way that helps them learn. Do not just give the right answer, but explain the *reasoning* behind the user's likely misconception.
-
-    **Question:** ${question}
-    **Options:** ${options.join(', ')}
-    **Student's (Incorrect) Answer:** ${userAnswer}
-    **Correct Answer:** ${correctAnswer}
-
-    Please provide a concise explanation that addresses why the student's answer might have seemed plausible but is ultimately incorrect, and then clarify the concept that leads to the correct answer.`;
-
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-    });
-    
     return response.text;
 };

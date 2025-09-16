@@ -1,5 +1,6 @@
 
 
+
 export enum View {
     DASHBOARD = 'DASHBOARD',
     TUTOR = 'TUTOR',
@@ -11,7 +12,6 @@ export enum View {
     STORE = 'STORE',
     STUDY_PLAN = 'STUDY_PLAN',
     STUDY_ZONE = 'STUDY_ZONE',
-    LEADERBOARD = 'LEADERBOARD',
 }
 
 export interface Flashcard {
@@ -40,12 +40,15 @@ export interface Achievement {
     dateUnlocked: string; // ISO 8601
 }
 
-export interface ConceptMapNode {
-    topic: string;
-    children: ConceptMapNode[];
-}
-
 export type StudyBuddyPersona = 'tutor' | 'encourager' | 'challenger';
+export type LearningStyle = 'visual' | 'aural' | 'read/write' | 'kinesthetic' | 'none';
+
+export interface StudyPlanTask {
+    day: string;
+    task: string;
+    activity?: 'tutor' | 'test' | 'flashcards' | 'read';
+    topic?: string;
+}
 
 export interface StudyPlan {
     id: string;
@@ -54,10 +57,7 @@ export interface StudyPlan {
     topics: string[];
     plan: {
         week: number;
-        dailyTasks: {
-            day: string;
-            task: string;
-        }[];
+        dailyTasks: StudyPlanTask[];
     }[];
     dateGenerated: string;
 }
@@ -81,6 +81,7 @@ export interface UserProfile {
         goals: DailyGoal[];
     } | null;
     studyBuddyPersona: StudyBuddyPersona;
+    learningStyle: LearningStyle;
     conceptStreaks: { [topic: string]: number }; // Topic -> streak count
     dailyTeaser: {
         date: string; // YYYY-MM-DD
@@ -101,6 +102,7 @@ export interface Question {
     correctAnswer: string;
     explanation?: string;
     userAnswer?: string;
+
     isCorrect?: boolean;
 }
 
@@ -129,6 +131,7 @@ export interface Message {
     id: string;
     text: string;
     sender: 'user' | 'model';
+    quiz?: Question[]; // For interactive mini-quizzes
     files?: {
         name: string;
         type: string;
@@ -171,3 +174,9 @@ export interface ConceptTimelineEntry {
 }
 
 export type TimelineEntry = TestTimelineEntry | UserTimelineEntry | ConceptTimelineEntry;
+
+// FIX: Added missing ConceptMapNode interface to resolve import error in ConceptMapModal.tsx.
+export interface ConceptMapNode {
+    topic: string;
+    children?: ConceptMapNode[];
+}

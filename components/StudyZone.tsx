@@ -1,7 +1,7 @@
 
 
-import React, { useState, useEffect, useRef } from 'react';
-import toast from 'react-hot-toast';
+
+import React, { useState, useEffect } from 'react';
 
 type TimerMode = 'pomodoro' | 'shortBreak' | 'longBreak';
 
@@ -21,6 +21,7 @@ const StudyZone: React.FC = () => {
     const [isActive, setIsActive] = useState(false);
     const [timeLeft, setTimeLeft] = useState(pomodoroMins * 60);
     const [pomodoros, setPomodoros] = useState(0);
+    
 
     const handleModeChange = (newMode: TimerMode) => {
         setMode(newMode);
@@ -41,7 +42,6 @@ const StudyZone: React.FC = () => {
     }, [pomodoroMins, shortBreakMins, longBreakMins]);
 
     useEffect(() => {
-        // FIX: Replaced NodeJS.Timeout with a more portable type that works in both browser and Node environments.
         let interval: ReturnType<typeof setInterval> | null = null;
         if (isActive && timeLeft > 0) {
             interval = setInterval(() => {
@@ -56,7 +56,6 @@ const StudyZone: React.FC = () => {
                 } else {
                     handleModeChange('shortBreak');
                 }
-                // Notify user
                 if(Notification.permission === 'granted') new Notification('Examito Study Zone', { body: 'Time for a break!' });
             } else {
                 handleModeChange('pomodoro');
@@ -69,12 +68,12 @@ const StudyZone: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isActive, timeLeft, mode, pomodoros]);
     
-    // Request notification permission
     useEffect(() => {
         if(Notification.permission === 'default') {
             Notification.requestPermission();
         }
     }, []);
+
 
     return (
         <div className="space-y-6 flex flex-col items-center text-center">
@@ -101,7 +100,7 @@ const StudyZone: React.FC = () => {
                 
                 <p className="mt-6 text-lg">Pomodoros completed: <span className="font-bold">{pomodoros}</span></p>
             </div>
-
+            
             <div className="w-full max-w-md bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                 <h2 className="text-xl font-bold mb-4">Timer Settings (minutes)</h2>
                 <div className="grid grid-cols-3 gap-4 text-center">

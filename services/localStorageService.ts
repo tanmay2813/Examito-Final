@@ -1,5 +1,6 @@
 
 
+
 import { UserProfile, Flashcard } from '../types';
 
 const USER_PROFILE_KEY = 'examitoUserProfile';
@@ -49,6 +50,7 @@ export const loadUserProfile = (): UserProfile | null => {
             profile.streakFreezes = profile.streakFreezes || 0;
             profile.dailyGoals = profile.dailyGoals || null;
             profile.studyBuddyPersona = profile.studyBuddyPersona || 'tutor';
+            profile.learningStyle = profile.learningStyle || 'none';
             profile.conceptStreaks = profile.conceptStreaks || {};
             profile.dailyTeaser = profile.dailyTeaser || null;
             profile.studyPlans = profile.studyPlans || [];
@@ -81,6 +83,7 @@ export const getInitialUserProfile = (name: string, board: string): UserProfile 
         streakFreezes: 1,
         dailyGoals: null,
         studyBuddyPersona: 'tutor',
+        learningStyle: 'none',
         conceptStreaks: {},
         dailyTeaser: null,
         studyPlans: [],

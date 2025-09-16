@@ -1,8 +1,9 @@
 
 
+
 import React, { useContext, useState, useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { View } from '../types';
+import { View, LearningStyle } from '../types';
 import { AppContext } from '../contexts/AppContext';
 
 import { DashboardIcon } from './icons/DashboardIcon';
@@ -15,7 +16,6 @@ import { AchievementIcon } from './icons/AchievementIcon';
 import { StoreIcon } from './icons/StoreIcon';
 import { StudyPlannerIcon } from './icons/StudyPlannerIcon';
 import { StudyZoneIcon } from './icons/StudyZoneIcon';
-import { LeaderboardIcon } from './icons/LeaderboardIcon';
 
 
 interface SidebarProps {
@@ -49,7 +49,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
         { view: View.REPORTS, label: 'Reports', icon: ReportIcon },
         { view: View.TIMELINE, label: 'Timeline', icon: TimelineIcon },
         { view: View.STUDY_ZONE, label: 'Study Zone', icon: StudyZoneIcon },
-        { view: View.LEADERBOARD, label: 'Leaderboard', icon: LeaderboardIcon },
         { view: View.ACHIEVEMENTS, label: 'Achievements', icon: AchievementIcon },
         { view: View.STORE, label: 'Store', icon: StoreIcon },
     ];
@@ -63,6 +62,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
     const handleNavItemClick = (view: View) => {
         setActiveView(view);
         setIsOpen(false); // Close sidebar on navigation in mobile
+    };
+    
+    const handleLearningStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        if (userProfile && setUserProfile) {
+            setUserProfile({ ...userProfile, learningStyle: e.target.value as LearningStyle });
+        }
     };
 
 
@@ -99,6 +104,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
                     })}
                 </nav>
                 <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                     <div className="flex items-center justify-between">
+                        <label htmlFor="learning-style" className="text-sm font-medium text-gray-700 dark:text-gray-300">Learning Style</label>
+                        <select
+                            id="learning-style"
+                            value={userProfile?.learningStyle || 'none'}
+                            onChange={handleLearningStyleChange}
+                            className="p-1 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600 text-gray-800 dark:text-gray-200 focus:ring-green-500 focus:border-green-500"
+                        >
+                            <option value="none">Default</option>
+                            <option value="visual">Visual</option>
+                            <option value="aural">Aural</option>
+                            <option value="read/write">Read/Write</option>
+                            <option value="kinesthetic">Kinesthetic</option>
+                        </select>
+                    </div>
                      <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Dark Mode</span>
                         <button

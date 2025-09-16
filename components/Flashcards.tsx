@@ -1,10 +1,12 @@
 
 
+
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
+import { generateSmartReviewSelection } from '../services/geminiService';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
-import type { Flashcard as FlashcardType } from '../types';
+import type { Flashcard as FlashcardType, UserProfile } from '../types';
 
 const Flashcard: React.FC<{ card: FlashcardType; onDelete: () => void }> = ({ card, onDelete }) => {
     const [isFlipped, setIsFlipped] = useState(false);
@@ -126,6 +128,9 @@ const Flashcards: React.FC = () => {
     const [back, setBack] = useState('');
     const [subject, setSubject] = useState('');
     const [isStudying, setIsStudying] = useState(false);
+    const [isSmartStudying, setIsSmartStudying] = useState(false);
+    const [isLoadingSmartReview, setIsLoadingSmartReview] = useState(false);
+    const [smartReviewCards, setSmartReviewCards] = useState<FlashcardType[]>([]);
 
     const cardsDue = useMemo(() => {
         if (!userProfile) return [];
@@ -133,6 +138,39 @@ const Flashcards: React.FC = () => {
         today.setHours(23, 59, 59, 999); // Set to end of today
         return userProfile.flashcards.filter(card => new Date(card.dueDate) <= today);
     }, [userProfile]);
+
+    const handleSmartReview = async () => {
+        if (!userProfile || userProfile.flashcards.length < 5) {
+            toast.error("You need at least 5 flashcards and some test history for a Smart Review.");
+            return;
+        }
+        setIsLoadingSmartReview(true);
+        const toastId = toast.loading("🤖 AI is analyzing your progress...");
+        try {
+            const subjects = [...new Set(userProfile.flashcards.map(c => c.subject))];
+            const recommendedSubjects = await generateSmartReviewSelection(userProfile, subjects);
+
+            if (recommendedSubjects.length === 0) {
+                toast.success("Great job, no major weak spots found! Try a regular review.", { id: toastId });
+                setIsLoadingSmartReview(false);
+                return;
+            }
+
+            const cardsForReview = userProfile.flashcards
+                .filter(card => recommendedSubjects.includes(card.subject))
+                .sort(() => Math.random() - 0.5); // Shuffle cards
+
+            setSmartReviewCards(cardsForReview.slice(0, 15)); // Limit to 15 cards
+            setIsSmartStudying(true);
+            toast.success(`Starting a Smart Review focused on: ${recommendedSubjects.join(', ')}`, { id: toastId });
+
+        } catch (error) {
+            console.error(error);
+            toast.error("Could not generate Smart Review. Please try again.", { id: toastId });
+        } finally {
+            setIsLoadingSmartReview(false);
+        }
+    };
     
     const handleDelete = (cardId: string) => {
         if (!userProfile || !setUserProfile) return;
@@ -161,6 +199,10 @@ const Flashcards: React.FC = () => {
         return <StudySession cardsToReview={cardsDue} onSessionEnd={() => setIsStudying(false)} />;
     }
 
+    if (isSmartStudying) {
+        return <StudySession cardsToReview={smartReviewCards} onSessionEnd={() => setIsSmartStudying(false)} />;
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
@@ -171,6 +213,14 @@ const Flashcards: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                     <button onClick={() => setShowForm(!showForm)} className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 w-full sm:w-auto flex-shrink-0">
                         {showForm ? 'Cancel' : 'Create Card'}
+                    </button>
+                     <button 
+                        onClick={handleSmartReview} 
+                        disabled={isLoadingSmartReview}
+                        className="px-5 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 w-full sm:w-auto flex-shrink-0 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        title="AI will pick cards based on your weak topics"
+                    >
+                       {isLoadingSmartReview ? 'Analyzing...' : '🤖 Smart Review'}
                     </button>
                     <button onClick={() => setIsStudying(true)} disabled={cardsDue.length === 0} className="px-5 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 w-full sm:w-auto flex-shrink-0 disabled:bg-gray-400 disabled:cursor-not-allowed">
                         Study ({cardsDue.length} due)

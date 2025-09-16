@@ -1,11 +1,15 @@
 
 
+
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateStudyPlan } from '../services/geminiService';
 import type { StudyPlan } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
+
+// Make jsPDF available from the CDN
+declare const jspdf: any;
 
 type PlannerStep = 'examName' | 'examDate' | 'startDate' | 'topics' | 'confirm';
 
@@ -75,6 +79,8 @@ const StudyPlanner: React.FC = () => {
             addStudyPlan(newPlan);
             setSelectedPlan(newPlan);
             toast.success("New study plan generated!");
+            setStep('examName'); // Reset wizard
+            setExamName(''); setExamDate(''); setStartDate(new Date().toISOString().split('T')[0]); setTopics([]);
         } catch (error) {
             console.error(error);
             toast.error("Failed to generate study plan. Please try again.");
@@ -83,6 +89,51 @@ const StudyPlanner: React.FC = () => {
         }
     };
     
+    const handleExportToPdf = () => {
+        if (!selectedPlan) return;
+        const { jsPDF } = jspdf;
+        const doc = new jsPDF();
+        
+        let y = 20;
+        doc.setFontSize(22);
+        doc.text(`Study Plan: ${selectedPlan.examName}`, 10, y);
+        y += 8;
+        doc.setFontSize(12);
+        doc.text(`Exam Date: ${new Date(selectedPlan.examDate).toLocaleDateString()}`, 10, y);
+        y += 15;
+
+        selectedPlan.plan.forEach(weekData => {
+            if (y > 270) { // Add new page if content overflows
+                doc.addPage();
+                y = 20;
+            }
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Week ${weekData.week}`, 10, y);
+            y += 8;
+            
+            weekData.dailyTasks.forEach(dayTask => {
+                 if (y > 280) {
+                    doc.addPage();
+                    y = 20;
+                }
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${dayTask.day}:`, 15, y);
+                doc.setFont('helvetica', 'normal');
+                
+                const taskText = doc.splitTextToSize(dayTask.task, 150); // wrap text
+                doc.text(taskText, 40, y);
+                y += (taskText.length * 5) + 3;
+            });
+            y += 5;
+        });
+
+        doc.save(`${selectedPlan.examName.replace(/\s+/g, '_').toLowerCase()}_study_plan.pdf`);
+        toast.success("Study plan exported to PDF!");
+    };
+
+
     const renderPlannerCreator = () => {
         return (
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-6">
@@ -173,17 +224,31 @@ const StudyPlanner: React.FC = () => {
                 <div className="lg:col-span-2">
                     {selectedPlan ? (
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg animate-fade-in h-full">
-                            <h2 className="text-2xl font-bold mb-1">Study Plan for {selectedPlan.examName}</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Exam Date: {new Date(selectedPlan.examDate).toLocaleDateString()}</p>
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-2 mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-bold mb-1">Study Plan for {selectedPlan.examName}</h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Exam Date: {new Date(selectedPlan.examDate).toLocaleDateString()}</p>
+                                </div>
+                                <button onClick={handleExportToPdf} className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 text-sm w-full sm:w-auto flex-shrink-0">
+                                    Export to PDF
+                                </button>
+                            </div>
                             <div className="space-y-6">
                                 {selectedPlan.plan.map(weekData => (
                                     <div key={weekData.week}>
                                         <h3 className="text-xl font-semibold mb-3 text-green-500">Week {weekData.week}</h3>
                                         <div className="space-y-3">
-                                            {weekData.dailyTasks.map(dayTask => (
-                                                <div key={dayTask.day} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex">
-                                                    <span className="font-bold w-24">{dayTask.day}:</span>
-                                                    <span>{dayTask.task}</span>
+                                            {weekData.dailyTasks.map((dayTask, i) => (
+                                                <div key={`${dayTask.day}-${i}`} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-md flex flex-col sm:flex-row justify-between items-start gap-2">
+                                                    <div className="flex">
+                                                        <span className="font-bold w-24 flex-shrink-0">{dayTask.day}:</span>
+                                                        <span>{dayTask.task}</span>
+                                                    </div>
+                                                     {dayTask.activity && dayTask.topic && (
+                                                        <button className="px-2 py-1 bg-green-200 text-green-800 dark:bg-green-700 dark:text-green-100 text-xs font-bold rounded-md hover:bg-green-300 w-full sm:w-auto flex-shrink-0">
+                                                            {dayTask.activity === 'test' ? `Take Test: ${dayTask.topic}` : `Go to ${dayTask.activity}`}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

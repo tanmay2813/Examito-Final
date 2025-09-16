@@ -2,10 +2,9 @@
 
 
 import React, { useState, useRef, useEffect, useContext } from 'react';
-import { getAdaptiveResponse, generateFlashcards, generateConceptMap, getSimplifiedResponse } from '../services/geminiService';
+import { getAdaptiveResponse, generateFlashcards, getSimplifiedResponse } from '../services/geminiService';
 import { AppContext } from '../contexts/AppContext';
-import { TimelineEntry, Message, UserTimelineEntry, ConceptTimelineEntry, ConceptMapNode, StudyBuddyPersona } from '../types';
-import ConceptMapModal from './ConceptMapModal';
+import { TimelineEntry, Message, UserTimelineEntry, ConceptTimelineEntry, StudyBuddyPersona, Question } from '../types';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -15,8 +14,6 @@ declare global {
     interface Window {
         renderMathInElement: (element: HTMLElement, options: any) => void;
         katex: any; // Add katex to global scope for robust checking
-        SpeechRecognition: any;
-        webkitSpeechRecognition: any;
     }
 }
 
@@ -46,6 +43,58 @@ const MessageContent: React.FC<{ text: string }> = ({ text }) => {
 
     // Render the text content directly. The effect will enhance this DOM node.
     return <div ref={contentRef} className="whitespace-pre-wrap">{text}</div>;
+};
+
+const InlineQuiz: React.FC<{ quiz: Question[]; onComplete: () => void }> = ({ quiz, onComplete }) => {
+    const { addXP } = useContext(AppContext);
+    const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+    const [isSubmitted, setIsSubmitted] = useState(false);
+    const question = quiz[0];
+
+    const handleSubmit = () => {
+        if (!selectedAnswer) return;
+        setIsSubmitted(true);
+        if (selectedAnswer === question.correctAnswer) {
+            toast.success("Correct! +10 XP", { icon: '🥳' });
+            if (addXP) addXP(10, "Correct quiz answer");
+        } else {
+            toast.error("Not quite, try again next time!", { icon: '🤔' });
+        }
+        setTimeout(onComplete, 2500); // Wait a bit before disappearing
+    };
+
+    return (
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border-l-4 border-blue-400 animate-fade-in">
+            <p className="font-bold text-blue-800 dark:text-blue-200 mb-3">Quick Question!</p>
+            <p className="mb-4">{question.questionText}</p>
+            <div className="space-y-2 mb-4">
+                {question.options.map(option => {
+                    const isCorrect = option === question.correctAnswer;
+                    const isSelected = option === selectedAnswer;
+                    let buttonClass = 'bg-gray-100 dark:bg-gray-600 hover:border-blue-400';
+                    if (isSubmitted) {
+                        if (isCorrect) buttonClass = 'bg-green-200 dark:bg-green-800 border-green-500';
+                        else if (isSelected) buttonClass = 'bg-red-200 dark:bg-red-800 border-red-500';
+                    } else if (isSelected) {
+                        buttonClass = 'bg-blue-500 border-blue-500 text-white font-bold';
+                    }
+                    return (
+                        <button
+                            key={option}
+                            onClick={() => !isSubmitted && setSelectedAnswer(option)}
+                            disabled={isSubmitted}
+                            className={`w-full text-left p-3 rounded-xl border-2 transition-all ${buttonClass}`}
+                        >
+                            {option}
+                        </button>
+                    );
+                })}
+            </div>
+            {!isSubmitted && (
+                <button onClick={handleSubmit} disabled={!selectedAnswer} className="w-full py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-gray-400">Submit</button>
+            )}
+        </div>
+    );
 };
 
 
@@ -92,13 +141,6 @@ const AdaptiveTutor: React.FC = () => {
     const [files, setFiles] = useState<File[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     
-    const [showConceptMap, setShowConceptMap] = useState(false);
-    const [conceptMapData, setConceptMapData] = useState<ConceptMapNode | null>(null);
-    const [isMapLoading, setIsMapLoading] = useState(false);
-    
-    const [isListening, setIsListening] = useState(false);
-    const recognitionRef = useRef<any>(null);
-    
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,59 +149,6 @@ const AdaptiveTutor: React.FC = () => {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
         }
     }, []);
-
-    // Setup Speech Recognition
-    useEffect(() => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            console.warn("Speech Recognition API is not supported in this browser.");
-            return;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        recognition.onresult = (event: any) => {
-            let interimTranscript = '';
-            let finalTranscript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
-                }
-            }
-             setInput(prevInput => prevInput + finalTranscript);
-        };
-
-        recognition.onerror = (event: any) => {
-            console.error('Speech recognition error', event.error);
-            toast.error("Speech recognition error. Please check microphone permissions.");
-            setIsListening(false);
-        };
-        
-        recognition.onend = () => {
-            setIsListening(false);
-        };
-        
-        recognitionRef.current = recognition;
-
-    }, []);
-
-    const toggleListening = () => {
-        if (!recognitionRef.current) {
-            toast.error("Voice input is not supported on your browser.");
-            return;
-        }
-        if (isListening) {
-            recognitionRef.current.stop();
-        } else {
-            recognitionRef.current.start();
-        }
-        setIsListening(!isListening);
-    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -235,18 +224,27 @@ const AdaptiveTutor: React.FC = () => {
             const aiResponseText = await getAdaptiveResponse(userProfile, messages, apiPromptText, imageFileInputs);
             
             const timelineRegex = /<TIMELINE_ENTRY>([\s\S]*?)<\/TIMELINE_ENTRY>/;
-            const match = aiResponseText.match(timelineRegex);
+            const quizRegex = /<QUIZ>([\s\S]*?)<\/QUIZ>/;
+            const timelineMatch = aiResponseText.match(timelineRegex);
+            const quizMatch = aiResponseText.match(quizRegex);
 
-            if (match && match[1] && addTimelineEntry) {
+            if (timelineMatch && timelineMatch[1] && addTimelineEntry) {
                 try {
-                    const timelineJson = JSON.parse(match[1]);
+                    const timelineJson = JSON.parse(timelineMatch[1]);
                     const newEntry: UserTimelineEntry = { id: uuidv4(), type: 'user', ...timelineJson };
                     addTimelineEntry(newEntry);
                     toast.success(`🗓️ Tutor added "${newEntry.title}" to your timeline!`);
                 } catch (e) { console.error("Failed to parse timeline entry:", e); }
             }
             
-            const aiMessage: Message = { id: uuidv4(), text: aiResponseText.replace(timelineRegex, '').trim(), sender: 'model' };
+            const aiMessage: Message = { id: uuidv4(), text: aiResponseText.replace(timelineRegex, '').replace(quizRegex, '').trim(), sender: 'model' };
+
+            if (quizMatch && quizMatch[1]) {
+                try {
+                    aiMessage.quiz = JSON.parse(quizMatch[1]);
+                } catch (e) { console.error("Failed to parse quiz JSON:", e); }
+            }
+
             setTutorHistory([...currentHistory, aiMessage]);
             toast.dismiss(toastId);
 
@@ -305,22 +303,6 @@ const AdaptiveTutor: React.FC = () => {
         }
     };
     
-    const handleGenerateConceptMap = async () => {
-        setIsMapLoading(true);
-        const toastId = toast.loading('Generating concept map...');
-        try {
-            const mapData = await generateConceptMap(messages);
-            setConceptMapData(mapData);
-            setShowConceptMap(true);
-            toast.success('Concept map generated!', { id: toastId });
-        } catch (error) {
-            console.error("Failed to generate concept map:", error);
-            toast.error('Could not generate map. The conversation might be too short.', { id: toastId });
-        } finally {
-            setIsMapLoading(false);
-        }
-    };
-
     const handlePersonaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         if(userProfile && setUserProfile) {
             const newPersona = e.target.value as StudyBuddyPersona;
@@ -328,6 +310,19 @@ const AdaptiveTutor: React.FC = () => {
             toast.success(`Switched to ${newPersona.charAt(0).toUpperCase() + newPersona.slice(1)} persona!`);
         }
     }
+    
+    const handleQuizComplete = (messageId: string) => {
+        if (setTutorHistory) {
+            const updatedHistory = messages.map(msg => {
+                if (msg.id === messageId) {
+                    const { quiz, ...rest } = msg;
+                    return { ...rest, text: msg.text + "\n\n[Quiz complete!]" };
+                }
+                return msg;
+            });
+            setTutorHistory(updatedHistory);
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
@@ -347,14 +342,6 @@ const AdaptiveTutor: React.FC = () => {
                         <option value="encourager">🤗 Encourager</option>
                         <option value="challenger">🧐 Challenger</option>
                     </select>
-                    <button 
-                        onClick={handleGenerateConceptMap}
-                        disabled={isMapLoading || messages.length < 2}
-                        className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
-                        title="Generate a concept map from this conversation"
-                    >
-                        {isMapLoading ? 'Generating...' : 'Concept Map'}
-                    </button>
                 </div>
             </header>
             <div className="flex-1 p-4 overflow-y-auto space-y-4">
@@ -376,8 +363,12 @@ const AdaptiveTutor: React.FC = () => {
                                     ))}
                                 </div>
                             )}
-                            <MessageContent text={msg.text} />
-                            {msg.sender === 'model' && (
+                            {msg.quiz ? (
+                                <InlineQuiz quiz={msg.quiz} onComplete={() => handleQuizComplete(msg.id)} />
+                            ) : (
+                                <MessageContent text={msg.text} />
+                            )}
+                            {msg.sender === 'model' && !msg.quiz && (
                                 <div className="absolute -top-3 -right-3 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button onClick={() => handleExplainSimply(msg)} title="Explain Simply" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">
                                         ✨
@@ -416,15 +407,12 @@ const AdaptiveTutor: React.FC = () => {
                     <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-2" title="Attach Files">
                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                     </button>
-                     <button onClick={toggleListening} className={`p-2 rounded-full mr-2 transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`} title={isListening ? 'Stop Listening' : 'Use Voice'}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line></svg>
-                    </button>
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder={isListening ? "Listening..." : "Type your question here..."}
+                        placeholder="Type your question here..."
                         className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
                         disabled={isLoading}
                     />
@@ -433,7 +421,6 @@ const AdaptiveTutor: React.FC = () => {
                     </button>
                 </div>
             </div>
-            {showConceptMap && conceptMapData && <ConceptMapModal data={conceptMapData} onClose={() => setShowConceptMap(false)} />}
         </div>
     );
 };

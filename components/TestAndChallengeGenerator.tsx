@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateTestQuestions, getMistakeExplanation } from '../services/geminiService';
@@ -57,12 +58,30 @@ const TestAndChallengeGenerator: React.FC = () => {
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [timeLeft, mode, currentQuiz, isFinished]);
+    
+    const handleGenerate = async (smart = false) => {
+        if (!userProfile || !setUserProfile) return;
 
-    const handleGenerate = async () => {
-        if (!topic || !userProfile || !setUserProfile) {
-            toast.error("Please enter a topic.");
-            return;
+        let testTopic = topic;
+        if (smart) {
+            const weakTopics = Object.entries(userProfile.mastery)
+                .filter(([, score]) => score < 80)
+                .sort(([, a], [, b]) => a - b)
+                .map(([topic]) => topic);
+            
+            if (weakTopics.length === 0) {
+                toast.success("No weak topics found! Try a regular test.");
+                return;
+            }
+            testTopic = weakTopics.slice(0, 3).join(', '); // Focus on up to 3 weakest topics
+            setTopic(testTopic);
         }
+
+        if (!testTopic) {
+             toast.error("Please enter a topic.");
+             return;
+        }
+
         setIsLoading(true);
         setCurrentQuiz(null);
         setIsFinished(false);
@@ -74,7 +93,7 @@ const TestAndChallengeGenerator: React.FC = () => {
                 toast.success('Used 1 Custom Quiz Ticket.', { icon: '🎟️' });
             }
 
-            const questions = await generateTestQuestions("General", userProfile.board, topic, numQuestions);
+            const questions = await generateTestQuestions("General", userProfile.board, testTopic, numQuestions);
             setCurrentQuiz(questions);
             setAnswers(new Array(numQuestions).fill(''));
             if (mode === 'challenge') {
@@ -87,6 +106,7 @@ const TestAndChallengeGenerator: React.FC = () => {
             setIsLoading(false);
         }
     };
+
 
     const handleGenerateMistakesQuiz = () => {
         if (pastMistakes.length < 1) {
@@ -149,7 +169,8 @@ const TestAndChallengeGenerator: React.FC = () => {
 
         // Update mastery (don't update for mistakes quiz as it skews data)
         if ((mode === 'test' || mode === 'challenge') && updateMastery) {
-            updateMastery(topic, finalScore);
+             const topicsToUpdate = topic.split(',').map(t => t.trim());
+             topicsToUpdate.forEach(t => updateMastery(t, finalScore));
         }
 
         const testId = uuidv4();
@@ -326,21 +347,36 @@ const TestAndChallengeGenerator: React.FC = () => {
                         {userProfile && userProfile.customQuizTickets > 0 && <option value={20}>20 (Uses 1 Ticket)</option>}
                     </select>
                 </div>
-                <button onClick={handleGenerate} disabled={isLoading} className={`w-full py-3 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400 ${mode === 'test' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                <button onClick={() => handleGenerate(false)} disabled={isLoading} className={`w-full py-3 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400 ${mode === 'test' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
                     {isLoading ? 'Generating...' : (mode === 'test' ? 'Generate Test' : 'Start Challenge')}
                 </button>
             </div>
+            
              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                 <h2 className="text-xl font-bold mb-2">Review & Reinforce</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Target your weak spots by taking a quiz on questions you've previously answered incorrectly.</p>
-                <button 
-                    onClick={handleGenerateMistakesQuiz} 
-                    disabled={pastMistakes.length < 3}
-                    className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                    Challenge Past Mistakes ({pastMistakes.length} available)
-                </button>
-                {pastMistakes.length < 3 && <p className="text-xs text-center mt-2 text-gray-500">Complete more tests to unlock this feature (min. 3 mistakes needed).</p>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                     <div className="flex flex-col">
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Target weak spots with a quiz on past mistakes.</p>
+                        <button 
+                            onClick={handleGenerateMistakesQuiz} 
+                            disabled={pastMistakes.length < 3}
+                            className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed mt-auto"
+                        >
+                            Challenge Past Mistakes ({pastMistakes.length})
+                        </button>
+                    </div>
+                     <div className="flex flex-col">
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Let AI find your weak topics and build a test for you.</p>
+                        <button 
+                            onClick={() => handleGenerate(true)} 
+                            disabled={isLoading}
+                            className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400 mt-auto"
+                        >
+                            {isLoading ? 'Analyzing...' : '🤖 Generate Personalized Test'}
+                        </button>
+                    </div>
+                </div>
+                {pastMistakes.length < 3 && <p className="text-xs text-center mt-2 text-gray-500">Complete more tests to unlock mistake challenges (min. 3 mistakes needed).</p>}
             </div>
             
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">

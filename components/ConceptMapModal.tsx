@@ -1,4 +1,6 @@
 
+
+
 import React from 'react';
 import type { ConceptMapNode } from '../types';
 
@@ -7,31 +9,46 @@ interface ConceptMapModalProps {
     onClose: () => void;
 }
 
-const RenderNode: React.FC<{ node: ConceptMapNode }> = ({ node }) => (
-    <li className="relative pl-8 before:content-[''] before:absolute before:left-0 before:top-4 before:w-6 before:h-px before:bg-gray-400 dark:before:bg-gray-500">
-        <div className="relative p-2 pl-4 bg-gray-100 dark:bg-gray-700 rounded-md mb-2 inline-block border-l-4 border-green-500">
-            <span className="font-semibold">{node.topic}</span>
+const RenderNode: React.FC<{ node: ConceptMapNode; isRoot?: boolean }> = ({ node, isRoot = false }) => (
+    <div className={`flex items-stretch ${isRoot ? '' : 'pl-8'}`}>
+        <div className="flex flex-col items-center mr-4">
+            {!isRoot && <div className="w-px bg-gray-300 dark:bg-gray-600 h-1/2"></div>}
+            <div
+                className={`text-sm sm:text-base px-3 py-2 rounded-lg shadow-md z-10 whitespace-nowrap font-semibold ${
+                    isRoot 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-100'
+                }`}
+            >
+                {node.topic}
+            </div>
+            {!isRoot && <div className="w-px bg-gray-300 dark:bg-gray-600 h-1/2"></div>}
         </div>
+        
         {node.children && node.children.length > 0 && (
-            <ul className="list-none pt-2">
-                {node.children.map((child, index) => <RenderNode key={index} node={child} />)}
-            </ul>
+            <div className="flex flex-col justify-center border-l-2 border-gray-300 dark:border-gray-600">
+                {node.children.map((child, index) => (
+                    <div key={index} className="relative">
+                         <div className="absolute -left-px top-1/2 w-8 h-px bg-gray-300 dark:bg-gray-600"></div>
+                         <RenderNode node={child} />
+                    </div>
+                ))}
+            </div>
         )}
-    </li>
+    </div>
 );
+
 
 const ConceptMapModal: React.FC<ConceptMapModalProps> = ({ data, onClose }) => {
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-2xl max-h-[80vh] flex flex-col">
-                <div className="flex justify-between items-center mb-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-3xl max-h-[80vh] flex flex-col">
+                <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold">Concept Map</h2>
-                    <button onClick={onClose} className="text-2xl font-bold">&times;</button>
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 text-2xl font-bold">&times;</button>
                 </div>
-                <div className="overflow-y-auto pr-4">
-                    <ul className="list-none space-y-2">
-                         <RenderNode node={data} />
-                    </ul>
+                <div className="overflow-auto pr-4 -ml-2">
+                     <RenderNode node={data} isRoot={true} />
                 </div>
             </div>
         </div>
