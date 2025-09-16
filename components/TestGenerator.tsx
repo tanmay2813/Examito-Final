@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
 
 const TestGenerator: React.FC = () => {
-    const { userProfile, setUserProfile } = useContext(AppContext);
+    const { userProfile, setUserProfile, updateMastery } = useContext(AppContext);
     const [topic, setTopic] = useState('');
     const [subject, setSubject] = useState('General');
     const [numQuestions, setNumQuestions] = useState(5);
@@ -60,6 +60,10 @@ const TestGenerator: React.FC = () => {
         const finalScore = Math.round((correctAnswers / currentTest.length) * 100);
         setScore(finalScore);
         
+        // Update concept mastery
+        updateMastery(topic, finalScore);
+        toast.success(`Updated mastery for ${topic} to ${finalScore}%!`);
+
         const testId = uuidv4();
         const newTestRecord: TestRecord = {
             testId,
@@ -95,7 +99,8 @@ const TestGenerator: React.FC = () => {
             timeline: [newTimelineEntry, ...userProfile.timeline]
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         };
-        setUserProfile(updatedProfile);
+        
+        if(setUserProfile) setUserProfile(updatedProfile);
         
         setTestFinished(true);
         toast.success(`Test submitted! Your score is ${correctAnswers}/${currentTest.length} (${finalScore}%)`);
@@ -209,7 +214,7 @@ const TestGenerator: React.FC = () => {
                 </div>
                 <div>
                     <label htmlFor="numQuestions" className="block text-sm font-medium mb-1">Number of Questions</label>
-                    <select id="numQuestions" value={numQuestions} onChange={e => setNumQuestions(parseInt(e.target.value))} className="w-full p-2 border rounded-md dark:bg-gamma-700 dark:border-gray-600 focus:ring-green-500 focus:border-green-500">
+                    <select id="numQuestions" value={numQuestions} onChange={e => setNumQuestions(parseInt(e.target.value))} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-green-500 focus:border-green-500">
                         <option value={5}>5</option>
                         <option value={10}>10</option>
                         <option value={15}>15</option>

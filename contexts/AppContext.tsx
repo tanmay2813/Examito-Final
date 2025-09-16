@@ -1,22 +1,30 @@
 
 
 import { createContext } from 'react';
-import type { UserProfile, TestRecord, Report, TimelineEntry, Message } from '../types';
+import type { UserProfile, Report, TimelineEntry, Message, Flashcard, DailyGoal } from '../types';
 
 interface AppContextType {
     userProfile: UserProfile | null;
-    setUserProfile: (profile: UserProfile | null) => void;
+    setUserProfile: ((profile: UserProfile | null) => void) | null;
     loading: boolean;
-    addReport: (report: Report) => void;
-    addTimelineEntry: (entry: TimelineEntry) => void;
-    setTutorHistory: (history: Message[]) => void;
+    addReport: ((report: Report) => void) | null;
+    addTimelineEntry: ((entry: TimelineEntry) => void) | null;
+    setTutorHistory: ((history: Message[]) => void) | null;
+    addFlashcard: ((flashcard: Omit<Flashcard, 'id'>) => void) | null;
+    updateMastery: ((topic: string, score: number) => void) | null;
+    setDailyGoals: ((goals: DailyGoal[]) => void) | null;
+    completeDailyGoal: ((goalId: string) => void) | null;
 }
 
 export const AppContext = createContext<AppContextType>({
     userProfile: null,
-    setUserProfile: () => {},
+    setUserProfile: null,
     loading: true,
-    addReport: () => {},
-    addTimelineEntry: () => {},
-    setTutorHistory: () => {},
+    addReport: null,
+    addTimelineEntry: null,
+    setTutorHistory: null,
+    addFlashcard: null,
+    updateMastery: null,
+    setDailyGoals: null,
+    completeDailyGoal: null,
 });

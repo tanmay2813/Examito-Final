@@ -10,19 +10,16 @@ import TestGenerator from './components/TestGenerator';
 import ProgressReports from './components/ProgressReports';
 import Timeline from './components/Timeline';
 import Login from './components/Login';
+import Flashcards from './components/Flashcards';
+import Achievements from './components/Achievements';
+import Challenges from './components/Challenges';
 import { View } from './types';
-import { Toaster, toast } from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast';
 
 const AppContent: React.FC = () => {
     const { userProfile, loading } = useContext(AppContext);
     const [activeView, setActiveView] = useState<View>(View.DASHBOARD);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-    useEffect(() => {
-        if (userProfile) {
-            // Welcome back message is now handled in AppProvider for consistency
-        }
-    }, [userProfile]);
 
     const renderView = () => {
         switch (activeView) {
@@ -36,6 +33,12 @@ const AppContent: React.FC = () => {
                 return <ProgressReports />;
             case View.TIMELINE:
                 return <Timeline />;
+            case View.FLASHCARDS:
+                return <Flashcards />;
+            case View.ACHIEVEMENTS:
+                return <Achievements />;
+            case View.CHALLENGES:
+                return <Challenges />;
             default:
                 return <Dashboard setActiveView={setActiveView} />;
         }

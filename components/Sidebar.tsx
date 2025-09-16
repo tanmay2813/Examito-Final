@@ -8,6 +8,10 @@ import { TutorIcon } from './icons/TutorIcon';
 import { TestIcon } from './icons/TestIcon';
 import { ReportIcon } from './icons/ReportIcon';
 import { TimelineIcon } from './icons/TimelineIcon';
+import { FlashcardIcon } from './icons/FlashcardIcon';
+import { AchievementIcon } from './icons/AchievementIcon';
+import { ChallengeIcon } from './icons/ChallengeIcon';
+
 
 interface SidebarProps {
     activeView: View;
@@ -23,13 +27,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
         { view: View.DASHBOARD, label: 'Dashboard', icon: DashboardIcon },
         { view: View.TUTOR, label: 'AI Tutor', icon: TutorIcon },
         { view: View.TESTS, label: 'Test Generator', icon: TestIcon },
+        { view: View.CHALLENGES, label: 'Challenges', icon: ChallengeIcon },
+        { view: View.FLASHCARDS, label: 'Flashcards', icon: FlashcardIcon },
         { view: View.REPORTS, label: 'Reports', icon: ReportIcon },
         { view: View.TIMELINE, label: 'Timeline', icon: TimelineIcon },
+        { view: View.ACHIEVEMENTS, label: 'Achievements', icon: AchievementIcon },
     ];
     
     const handleLogout = () => {
         if(window.confirm('Are you sure you want to logout? This will clear your data.')) {
-            setUserProfile(null);
+            if (setUserProfile) setUserProfile(null);
         }
     }
     

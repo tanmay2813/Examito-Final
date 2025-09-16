@@ -1,10 +1,36 @@
 
+
 export enum View {
     DASHBOARD = 'DASHBOARD',
     TUTOR = 'TUTOR',
     TESTS = 'TESTS',
     REPORTS = 'REPORTS',
-    TIMELINE = 'TIMELINE'
+    TIMELINE = 'TIMELINE',
+    FLASHCARDS = 'FLASHCARDS',
+    ACHIEVEMENTS = 'ACHIEVEMENTS',
+    CHALLENGES = 'CHALLENGES'
+}
+
+export interface Flashcard {
+    id: string;
+    front: string; // The question/concept
+    back: string; // The answer/explanation
+    subject: string;
+}
+
+export interface DailyGoal {
+    id: string;
+    description: string;
+    isCompleted: boolean;
+    xp: number;
+}
+
+export interface Achievement {
+    id: string; // e.g., 'STREAK_CHAMPION_7'
+    name: string;
+    description: string;
+    icon: string;
+    dateUnlocked: string; // ISO 8601
 }
 
 export interface UserProfile {
@@ -17,6 +43,14 @@ export interface UserProfile {
     reports: Report[];
     timeline: TimelineEntry[];
     tutorHistory: Message[];
+    flashcards: Flashcard[];
+    achievements: Achievement[];
+    mastery: { [topic: string]: number }; // Topic -> mastery score (0-100)
+    streakFreezes: number;
+    dailyGoals: {
+        date: string; // YYYY-MM-DD
+        goals: DailyGoal[];
+    } | null;
 }
 
 export interface Question {
@@ -52,11 +86,11 @@ export interface Message {
     id: string;
     text: string;
     sender: 'user' | 'model';
-    file?: {
+    files?: {
         name: string;
         type: string;
         base64Data?: string;
-    };
+    }[];
 }
 
 // Timeline Entry Types
