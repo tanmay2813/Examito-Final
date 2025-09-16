@@ -12,8 +12,16 @@ import { v4 as uuidv4 } from 'uuid';
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [userProfile, setUserProfileState] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
+    const [apiKeyOk, setApiKeyOk] = useState(true);
 
     useEffect(() => {
+        if (!process.env.API_KEY) {
+            console.error("CRITICAL: Gemini API Key is missing from environment variables. The application cannot initialize AI services.");
+            setApiKeyOk(false);
+            setLoading(false);
+            return;
+        }
+
         const profile = loadUserProfile();
         if (profile) {
             const today = new Date();
@@ -161,6 +169,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             userProfile, 
             setUserProfile, 
             loading,
+            apiKeyOk,
             addReport,
             addTimelineEntry,
             setTutorHistory,
