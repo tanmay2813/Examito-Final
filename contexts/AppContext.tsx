@@ -7,7 +7,8 @@ interface AppContextType {
     userProfile: UserProfile | null;
     setUserProfile: ((profile: UserProfile | null) => void) | null;
     loading: boolean;
-    apiKeyOk: boolean;
+    apiKey: string | null;
+    setApiKey: ((key: string) => void) | null;
     addReport: ((report: Report) => void) | null;
     addTimelineEntry: ((entry: TimelineEntry) => void) | null;
     setTutorHistory: ((history: Message[]) => void) | null;
@@ -22,7 +23,8 @@ export const AppContext = createContext<AppContextType>({
     userProfile: null,
     setUserProfile: null,
     loading: true,
-    apiKeyOk: true,
+    apiKey: null,
+    setApiKey: null,
     addReport: null,
     addTimelineEntry: null,
     setTutorHistory: null,

@@ -1,16 +1,31 @@
 
+
 import { GoogleGenAI, Type } from "@google/genai";
 import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, ConceptMapNode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
-// Initialize the AI instance only if the API key is available.
-// This prevents a crash on module load if the key is missing in the environment.
-const ai = process.env.API_KEY ? new GoogleGenAI({ apiKey: process.env.API_KEY }) : null;
+let ai: GoogleGenAI | null = null;
 
-// A helper function to ensure the AI is initialized before use.
-const ensureAiInitialized = () => {
+/**
+ * Initializes the Google AI service with the provided API key.
+ * This must be called once before any other function in this service.
+ * @param apiKey The Google Gemini API key.
+ */
+export const initializeAi = (apiKey: string) => {
+    if (!apiKey) {
+        throw new Error("API key is required to initialize the AI service.");
+    }
+    ai = new GoogleGenAI({ apiKey });
+};
+
+/**
+ * A helper function to get the initialized AI instance.
+ * Throws an error if the AI service has not been initialized yet.
+ * @returns The initialized GoogleGenAI instance.
+ */
+const getAi = (): GoogleGenAI => {
     if (!ai) {
-        throw new Error("Gemini AI service is not initialized. The API_KEY environment variable is likely missing.");
+        throw new Error("Gemini AI service is not initialized. Please provide an API key.");
     }
     return ai;
 };
@@ -97,7 +112,7 @@ export const getAdaptiveResponse = async (
     newPrompt: string,
     fileInputs: { mimeType: string; data: string }[] | null
 ): Promise<string> => {
-    const ai = ensureAiInitialized();
+    const ai = getAi();
     const model = 'gemini-2.5-flash';
     const systemInstruction = TUTOR_SYSTEM_INSTRUCTION(userProfile.board);
 
@@ -138,7 +153,7 @@ export const getAdaptiveResponse = async (
 };
 
 export const generateTestQuestions = async (subject: string, board: string, topic: string, numQuestions: number): Promise<Question[]> => {
-    const ai = ensureAiInitialized();
+    const ai = getAi();
     const prompt = `Generate ${numQuestions} multiple-choice questions for a test on the topic "${topic}" for a student studying the ${board} curriculum in the subject ${subject}. Each question should have 4 options. Provide a brief explanation for the correct answer.`;
     
     const response = await ai.models.generateContent({
@@ -158,7 +173,7 @@ export const generateTestQuestions = async (subject: string, board: string, topi
 };
 
 export const generateDailyQuestions = async (board: string): Promise<Question[]> => {
-    const ai = ensureAiInitialized();
+    const ai = getAi();
     const prompt = `Generate 5 multiple-choice questions on general knowledge topics suitable for a student studying the ${board} curriculum. The topics should be varied and interesting. Each question must have 4 options. Provide the correct answer and a brief explanation for each.`;
     
     const response = await ai.models.generateContent({
@@ -178,7 +193,7 @@ export const generateDailyQuestions = async (board: string): Promise<Question[]>
 };
 
 export const generateProgressReport = async (userProfile: UserProfile): Promise<Omit<Report, 'reportId' | 'dateGenerated'>> => {
-    const ai = ensureAiInitialized();
+    const ai = getAi();
     const testHistorySummary = userProfile.tests.map(t => ({
         subject: t.subject,
         score: t.score,
@@ -211,7 +226,7 @@ export const generateProgressReport = async (userProfile: UserProfile): Promise<
 };
 
 export const analyzeFileContent = async (base64Data: string, mimeType: string, prompt: string): Promise<string> => {
-    const ai = ensureAiInitialized();
+    const ai = getAi();
     const imagePart = {
         inlineData: {
             mimeType,
@@ -231,7 +246,7 @@ export const analyzeFileContent = async (base64Data: string, mimeType: string, p
 };
 
 export const generateFlashcard = async (text: string): Promise<Omit<Flashcard, 'id'>> => {
-    const ai = ensureAiInitialized();
+    const ai = getAi();
     const prompt = `Based on the following text, create a concise flashcard with a 'front' (a question or term) and a 'back' (the answer or definition). Also identify the general 'subject'. Text: "${text}"`;
 
     const response = await ai.models.generateContent({
@@ -248,7 +263,7 @@ export const generateFlashcard = async (text: string): Promise<Omit<Flashcard, '
 
 
 export const generateDailyGoals = async (userProfile: UserProfile): Promise<DailyGoal[]> => {
-    const ai = ensureAiInitialized();
+    const ai = getAi();
     const topics = userProfile.tests.map(t => t.subject).join(', ') || 'general knowledge';
     const prompt = `Create exactly 3 short, achievable daily study goals for a student. The goals should be encouraging and related to these topics: ${topics}. One goal should be about reviewing a past topic, one about learning something new, and one related to practice.`;
 
@@ -270,7 +285,7 @@ export const generateDailyGoals = async (userProfile: UserProfile): Promise<Dail
 };
 
 export const generateConceptMap = async (history: Message[]): Promise<ConceptMapNode> => {
-    const ai = ensureAiInitialized();
+    const ai = getAi();
     const conversation = history
         .filter(m => m.text && m.text.trim() !== '')
         .map(m => `${m.sender}: ${m.text}`)

@@ -12,11 +12,12 @@ import Timeline from './components/Timeline';
 import Login from './components/Login';
 import Flashcards from './components/Flashcards';
 import Achievements from './components/Achievements';
+import ApiKeyPrompt from './components/ApiKeyPrompt';
 import { View } from './types';
 import { Toaster } from 'react-hot-toast';
 
 const AppContent: React.FC = () => {
-    const { userProfile, loading, apiKeyOk } = useContext(AppContext);
+    const { userProfile, loading, apiKey } = useContext(AppContext);
     const [activeView, setActiveView] = useState<View>(View.DASHBOARD);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -41,29 +42,16 @@ const AppContent: React.FC = () => {
         }
     };
 
-    if (!apiKeyOk) {
-        return (
-            <div className="flex items-center justify-center h-screen bg-red-50 dark:bg-gray-900 p-4">
-                <div className="w-full max-w-lg p-8 text-center bg-white dark:bg-gray-800 rounded-2xl shadow-lg border-2 border-red-500">
-                    <div className="text-5xl mb-4">🚫</div>
-                    <h1 className="text-3xl font-extrabold text-red-600 dark:text-red-400">Configuration Error</h1>
-                    <p className="mt-4 text-gray-600 dark:text-gray-300">
-                        The application is not configured correctly. The required API key for the AI service is missing.
-                    </p>
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        Please contact the administrator or check the deployment environment variables to resolve this issue.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
     if (loading) {
         return (
             <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900">
                 <div className="text-2xl font-bold text-gray-800 dark:text-gray-200">Loading Examito...</div>
             </div>
         );
+    }
+    
+    if (!apiKey) {
+        return <ApiKeyPrompt />;
     }
 
     return (
