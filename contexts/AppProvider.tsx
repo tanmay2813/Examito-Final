@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppContext } from './AppContext';
 import { saveUserProfile, loadUserProfile } from '../services/localStorageService';
-import { initializeAi } from '../services/geminiService';
 import { checkAndAwardAchievements } from '../services/achievements';
 import type { UserProfile, Report, TimelineEntry, Message, Flashcard, DailyGoal } from '../types';
 import toast from 'react-hot-toast';
@@ -13,20 +12,8 @@ import { v4 as uuidv4 } from 'uuid';
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [userProfile, setUserProfileState] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
-    const [apiKey, setApiKeyState] = useState<string | null>(null);
 
     useEffect(() => {
-        const storedKey = sessionStorage.getItem('geminiApiKey');
-        if (storedKey) {
-            try {
-                initializeAi(storedKey);
-                setApiKeyState(storedKey);
-            } catch (error) {
-                console.error("Failed to initialize AI with stored key:", error);
-                sessionStorage.removeItem('geminiApiKey');
-            }
-        }
-
         const profile = loadUserProfile();
         if (profile) {
             const today = new Date();
@@ -57,24 +44,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 }
             }
             setUserProfileState(profile);
-            if (storedKey) {
-                 toast.success(`Welcome back, ${profile.name}!`);
-            }
+            toast.success(`Welcome back, ${profile.name}!`);
         }
         setLoading(false);
     }, []);
-
-    const setApiKey = (key: string) => {
-        try {
-            initializeAi(key);
-            sessionStorage.setItem('geminiApiKey', key);
-            setApiKeyState(key);
-            toast.success("API Key configured successfully!");
-        } catch (error) {
-            console.error("Failed to initialize AI with provided key:", error);
-            toast.error("Invalid API Key. Please check and try again.");
-        }
-    };
 
     const setUserProfile = (profile: UserProfile | null) => {
         if (profile) {
@@ -188,8 +161,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             userProfile, 
             setUserProfile, 
             loading,
-            apiKey,
-            setApiKey,
             addReport,
             addTimelineEntry,
             setTutorHistory,

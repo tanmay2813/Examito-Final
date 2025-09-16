@@ -4,29 +4,13 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, ConceptMapNode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
-let ai: GoogleGenAI | null = null;
-
-/**
- * Initializes the Google AI service with the provided API key.
- * This must be called once before any other function in this service.
- * @param apiKey The Google Gemini API key.
- */
-export const initializeAi = (apiKey: string) => {
-    if (!apiKey) {
-        throw new Error("API key is required to initialize the AI service.");
-    }
-    ai = new GoogleGenAI({ apiKey });
-};
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
  * A helper function to get the initialized AI instance.
- * Throws an error if the AI service has not been initialized yet.
  * @returns The initialized GoogleGenAI instance.
  */
 const getAi = (): GoogleGenAI => {
-    if (!ai) {
-        throw new Error("Gemini AI service is not initialized. Please provide an API key.");
-    }
     return ai;
 };
 

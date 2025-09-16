@@ -12,12 +12,11 @@ import Timeline from './components/Timeline';
 import Login from './components/Login';
 import Flashcards from './components/Flashcards';
 import Achievements from './components/Achievements';
-import ApiKeyPrompt from './components/ApiKeyPrompt';
 import { View } from './types';
 import { Toaster } from 'react-hot-toast';
 
 const AppContent: React.FC = () => {
-    const { userProfile, loading, apiKey } = useContext(AppContext);
+    const { userProfile, loading } = useContext(AppContext);
     const [activeView, setActiveView] = useState<View>(View.DASHBOARD);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -50,10 +49,6 @@ const AppContent: React.FC = () => {
         );
     }
     
-    if (!apiKey) {
-        return <ApiKeyPrompt />;
-    }
-
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex">
             {userProfile ? (
