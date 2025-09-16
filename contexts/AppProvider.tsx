@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppContext } from './AppContext';
 import { saveUserProfile, loadUserProfile } from '../services/localStorageService';
@@ -52,18 +50,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const setUserProfile = (profile: UserProfile | null) => {
         if (profile) {
-            const newlyAwardedAchievements = checkAndAwardAchievements(profile);
+            // Create a mutable copy to work with, preventing direct state mutation.
+            const profileUpdate = { ...profile };
+            const newlyAwardedAchievements = checkAndAwardAchievements(profileUpdate);
+            
             if (newlyAwardedAchievements.length > 0) {
+                // Ensure achievements array is a new instance before modifying.
+                profileUpdate.achievements = [...profileUpdate.achievements];
                 let xpFromAchievements = 0;
+                
                 newlyAwardedAchievements.forEach(ach => {
                     toast.success(`Achievement Unlocked: ${ach.name}!`, { icon: ach.icon, duration: 4000 });
-                    profile.achievements.push(ach);
+                    profileUpdate.achievements.push(ach);
                     xpFromAchievements += 50; // Base XP for any achievement
                 });
 
                  if (xpFromAchievements > 0) {
                     let finalAmount = xpFromAchievements;
-                    const doubleXpActive = profile.doubleXpUntil && new Date(profile.doubleXpUntil) > new Date();
+                    const doubleXpActive = profileUpdate.doubleXpUntil && new Date(profileUpdate.doubleXpUntil) > new Date();
 
                     if (doubleXpActive) {
                         finalAmount *= 2;
@@ -71,12 +75,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     } else {
                         toast.success(`+${finalAmount} XP from achievements!`, { icon: '⭐' });
                     }
-                    profile.XP += finalAmount;
+                    profileUpdate.XP += finalAmount;
                 }
             }
+            
+            // Set state with the updated, non-mutated object.
+            setUserProfileState(profileUpdate);
+            saveUserProfile(profileUpdate);
+        } else {
+            // Handle logout/reset
+            setUserProfileState(null);
+            saveUserProfile(null);
         }
-        setUserProfileState(profile);
-        saveUserProfile(profile);
     };
 
     const addXP = useCallback((amount: number, reason: string) => {
@@ -190,7 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const completeDailyGoal = (goalId: string) => {
-        if (!userProfile || !userProfile.dailyGoals || !addXP) return;
+        if (!userProfile || !userProfile.dailyGoals) return;
         let xpGained = 0;
         let goalDescription = '';
         const updatedGoals = userProfile.dailyGoals.goals.map(g => {
@@ -203,9 +213,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
         if (xpGained > 0) {
-            addXP(xpGained, `Goal complete: ${goalDescription}`);
+            let finalAmount = xpGained;
+            const doubleXpActive = userProfile.doubleXpUntil && new Date(userProfile.doubleXpUntil) > new Date();
+
+            if (doubleXpActive) {
+                finalAmount *= 2;
+            }
+            
+            toast.success(`Goal complete: ${goalDescription}. +${finalAmount} XP ${doubleXpActive ? '(2x Boost!)' : ''}`, { icon: '⭐' });
+            
             const updatedProfile = {
                 ...userProfile,
+                XP: userProfile.XP + finalAmount,
                 dailyGoals: { ...userProfile.dailyGoals, goals: updatedGoals }
             };
             setUserProfile(updatedProfile);
