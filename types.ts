@@ -8,7 +8,6 @@ export enum View {
     TIMELINE = 'TIMELINE',
     FLASHCARDS = 'FLASHCARDS',
     ACHIEVEMENTS = 'ACHIEVEMENTS',
-    CHALLENGES = 'CHALLENGES'
 }
 
 export interface Flashcard {
@@ -31,6 +30,11 @@ export interface Achievement {
     description: string;
     icon: string;
     dateUnlocked: string; // ISO 8601
+}
+
+export interface ConceptMapNode {
+    topic: string;
+    children: ConceptMapNode[];
 }
 
 export interface UserProfile {

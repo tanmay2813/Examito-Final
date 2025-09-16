@@ -1,9 +1,10 @@
 
 
 import React, { useState, useRef, useEffect, useContext } from 'react';
-import { getAdaptiveResponse, generateFlashcard } from '../services/geminiService';
+import { getAdaptiveResponse, generateFlashcard, generateConceptMap } from '../services/geminiService';
 import { AppContext } from '../contexts/AppContext';
-import { TimelineEntry, Message, UserTimelineEntry, ConceptTimelineEntry } from '../types';
+import { TimelineEntry, Message, UserTimelineEntry, ConceptTimelineEntry, ConceptMapNode } from '../types';
+import ConceptMapModal from './ConceptMapModal';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -80,12 +81,16 @@ const extractPdfText = async (file: File): Promise<string> => {
 };
 
 const AdaptiveTutor: React.FC = () => {
-    const { userProfile, setTutorHistory, addTimelineEntry, addFlashcard } = useContext(AppContext);
+    const { userProfile, setTutorHistory, addTimelineEntry, addFlashcard, recordDailyActivity } = useContext(AppContext);
     const messages = userProfile?.tutorHistory || [];
 
     const [input, setInput] = useState('');
     const [files, setFiles] = useState<File[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    
+    const [showConceptMap, setShowConceptMap] = useState(false);
+    const [conceptMapData, setConceptMapData] = useState<ConceptMapNode | null>(null);
+    const [isMapLoading, setIsMapLoading] = useState(false);
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,9 +133,10 @@ const AdaptiveTutor: React.FC = () => {
         if ((input.trim() === '' && files.length === 0) || isLoading || !userProfile || !setTutorHistory) return;
 
         setIsLoading(true);
+        if (recordDailyActivity) recordDailyActivity();
+        
         const toastId = toast.loading('Preparing your message...');
         
-        // This is the message that will be saved to history. It only contains the user's typed input.
         const userMessage: Message = {
             id: uuidv4(),
             text: input,
@@ -139,34 +145,28 @@ const AdaptiveTutor: React.FC = () => {
         };
 
         try {
-            // This prompt is sent to the API and includes file contents. It is NOT saved.
             let apiPromptText = input;
             const imageFileInputs: { mimeType: string; data: string }[] = [];
             const messageFiles: Message['files'] = [];
 
-            // Process all selected files
             for (const file of files) {
                 const fileMeta = { name: file.name, type: file.type };
                 if (file.type === 'application/pdf') {
                     toast.loading(`Reading ${file.name}...`, { id: toastId });
                     const pdfText = await extractPdfText(file);
-                    // Append PDF text to the temporary API prompt
                     apiPromptText += `\n\n---START OF FILE: ${file.name}---\n${pdfText}\n---END OF FILE: ${file.name}---`;
                     messageFiles.push(fileMeta);
-                } else { // It's an image
+                } else {
                     const base64Data = await toBase64(file);
                     imageFileInputs.push({ mimeType: file.type, data: base64Data });
                     messageFiles.push({ ...fileMeta, base64Data });
                 }
             }
             
-            // Update userMessage with file metadata for display purposes
             userMessage.files = messageFiles.length > 0 ? messageFiles : undefined;
-            
             const currentHistory = [...messages, userMessage];
             setTutorHistory(currentHistory);
             
-            // Clear inputs for the next message
             setInput('');
             setFiles([]);
 
@@ -226,13 +226,38 @@ const AdaptiveTutor: React.FC = () => {
             toast.error('Could not create flashcard.', { id: toastId });
         }
     };
-
+    
+    const handleGenerateConceptMap = async () => {
+        setIsMapLoading(true);
+        const toastId = toast.loading('Generating concept map...');
+        try {
+            const mapData = await generateConceptMap(messages);
+            setConceptMapData(mapData);
+            setShowConceptMap(true);
+            toast.success('Concept map generated!', { id: toastId });
+        } catch (error) {
+            console.error("Failed to generate concept map:", error);
+            toast.error('Could not generate map. The conversation might be too short.', { id: toastId });
+        } finally {
+            setIsMapLoading(false);
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
-            <header className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-2xl font-bold">AI Tutor</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Ask a question or upload files (JPG, PNG, PDF).</p>
+            <header className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <div>
+                    <h2 className="text-2xl font-bold">AI Tutor</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Ask a question or upload files (JPG, PNG, PDF).</p>
+                </div>
+                <button 
+                    onClick={handleGenerateConceptMap}
+                    disabled={isMapLoading || messages.length < 2}
+                    className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
+                    title="Generate a concept map from this conversation"
+                >
+                    {isMapLoading ? 'Generating...' : 'Concept Map'}
+                </button>
             </header>
             <div className="flex-1 p-4 overflow-y-auto space-y-4">
                 {messages.map((msg) => (
@@ -304,6 +329,7 @@ const AdaptiveTutor: React.FC = () => {
                     </button>
                 </div>
             </div>
+            {showConceptMap && conceptMapData && <ConceptMapModal data={conceptMapData} onClose={() => setShowConceptMap(false)} />}
         </div>
     );
 };

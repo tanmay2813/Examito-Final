@@ -16,6 +16,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         const profile = loadUserProfile();
         if (profile) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            if (profile.lastDailyCompletion) {
+                const lastCompletionDate = new Date(profile.lastDailyCompletion);
+                // Adjust for timezone by getting date parts and reconstructing
+                const utcDate = new Date(lastCompletionDate.getUTCFullYear(), lastCompletionDate.getUTCMonth(), lastCompletionDate.getUTCDate());
+                utcDate.setHours(0,0,0,0);
+                
+                const diffTime = today.getTime() - utcDate.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 2 && profile.streakFreezes > 0) {
+                    // Missed yesterday, but has a freeze
+                    profile.streakFreezes -= 1;
+                    const yesterday = new Date(today);
+                    yesterday.setDate(today.getDate() - 1);
+                    profile.lastDailyCompletion = yesterday.toISOString().split('T')[0];
+                    toast('Your streak was saved with a freeze! 🧊', { duration: 4000, icon: '🛡️' });
+                } else if (diffDays > 1) {
+                    // Missed more than a day or no freezes left
+                    if (profile.streak > 0) {
+                        toast.error(`Your ${profile.streak}-day streak was lost. Keep learning to start a new one!`, { icon: '💔' });
+                    }
+                    profile.streak = 0;
+                }
+            }
             setUserProfileState(profile);
             toast.success(`Welcome back, ${profile.name}!`);
         }
@@ -23,14 +50,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, []);
 
     const setUserProfile = (profile: UserProfile | null) => {
-        // Check for achievements before updating the state
         if (profile) {
             const newlyAwardedAchievements = checkAndAwardAchievements(profile);
             if (newlyAwardedAchievements.length > 0) {
                 newlyAwardedAchievements.forEach(ach => {
                     toast.success(`Achievement Unlocked: ${ach.name}!`, { icon: ach.icon, duration: 4000 });
                     profile.achievements.push(ach);
-                    profile.XP += 50; // Award XP for achievement
+                    profile.XP += 50;
                 });
             }
         }
@@ -38,12 +64,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveUserProfile(profile);
     };
 
-    const addReport = (report: Report) => {
+    const recordDailyActivity = useCallback(() => {
         if (!userProfile) return;
+        const today = new Date().toISOString().split('T')[0];
+        if (userProfile.lastDailyCompletion === today) return;
+
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        
+        const newStreak = userProfile.lastDailyCompletion === yesterdayStr ? userProfile.streak + 1 : 1;
+        const xpEarned = 10;
+        
+        toast.success(`Daily activity complete! +${xpEarned} XP`, { icon: '✅' });
+        if (newStreak > userProfile.streak && newStreak > 1) {
+            toast.success(`Streak extended to ${newStreak} days!`, { icon: '🔥' });
+        }
+        
         const updatedProfile = {
             ...userProfile,
-            reports: [report, ...userProfile.reports],
+            XP: userProfile.XP + xpEarned,
+            streak: newStreak,
+            lastDailyCompletion: today,
         };
+        setUserProfile(updatedProfile);
+    }, [userProfile]);
+
+    const addReport = (report: Report) => {
+        if (!userProfile) return;
+        const updatedProfile = { ...userProfile, reports: [report, ...userProfile.reports] };
         setUserProfile(updatedProfile);
     };
 
@@ -66,10 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const addFlashcard = (flashcard: Omit<Flashcard, 'id'>) => {
         if (!userProfile) return;
         const newFlashcard: Flashcard = { ...flashcard, id: uuidv4() };
-        const updatedProfile = {
-            ...userProfile,
-            flashcards: [newFlashcard, ...userProfile.flashcards]
-        };
+        const updatedProfile = { ...userProfile, flashcards: [newFlashcard, ...userProfile.flashcards] };
         setUserProfile(updatedProfile);
     };
 
@@ -77,10 +123,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!userProfile) return;
         const updatedProfile = {
             ...userProfile,
-            mastery: {
-                ...userProfile.mastery,
-                [topic]: Math.max(userProfile.mastery[topic] || 0, score),
-            }
+            mastery: { ...userProfile.mastery, [topic]: Math.max(userProfile.mastery[topic] || 0, score) }
         };
         setUserProfile(updatedProfile);
     };
@@ -88,19 +131,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const setDailyGoals = (goals: DailyGoal[]) => {
         if (!userProfile) return;
         const todayStr = new Date().toISOString().split('T')[0];
-        const updatedProfile = {
-            ...userProfile,
-            dailyGoals: {
-                date: todayStr,
-                goals: goals,
-            }
-        };
+        const updatedProfile = { ...userProfile, dailyGoals: { date: todayStr, goals } };
         setUserProfile(updatedProfile);
     };
 
     const completeDailyGoal = (goalId: string) => {
         if (!userProfile || !userProfile.dailyGoals) return;
-        
         let xpGained = 0;
         const updatedGoals = userProfile.dailyGoals.goals.map(g => {
             if (g.id === goalId && !g.isCompleted) {
@@ -109,21 +145,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             return g;
         });
-
         if (xpGained > 0) {
             toast.success(`Goal complete! +${xpGained} XP`, { icon: '✨' });
             const updatedProfile = {
                 ...userProfile,
                 XP: userProfile.XP + xpGained,
-                dailyGoals: {
-                    ...userProfile.dailyGoals,
-                    goals: updatedGoals,
-                }
+                dailyGoals: { ...userProfile.dailyGoals, goals: updatedGoals }
             };
             setUserProfile(updatedProfile);
         }
     };
-
 
     return (
         <AppContext.Provider value={{ 
@@ -136,7 +167,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             addFlashcard,
             updateMastery,
             setDailyGoals,
-            completeDailyGoal
+            completeDailyGoal,
+            recordDailyActivity
         }}>
             {children}
         </AppContext.Provider>

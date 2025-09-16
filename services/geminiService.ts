@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard } from '../types';
+import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, ConceptMapNode } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Correctly initialize with API key from environment variables as per guidelines
@@ -61,6 +61,22 @@ const dailyGoalsSchema = {
         },
         required: ['description', 'xp']
     }
+};
+
+const conceptMapSchema: any = {
+    type: Type.OBJECT,
+    properties: {
+        topic: { type: Type.STRING, description: 'The central topic or root of the map.' },
+        children: {
+            type: Type.ARRAY,
+            description: 'An array of sub-topics or related concepts.',
+            items: {
+                // This creates a recursive schema structure for nested children
+                $ref: '#'
+            }
+        }
+    },
+    required: ['topic', 'children']
 };
 
 
@@ -235,4 +251,31 @@ export const generateDailyGoals = async (userProfile: UserProfile): Promise<Dail
         id: uuidv4(),
         isCompleted: false,
     }));
+};
+
+export const generateConceptMap = async (history: Message[]): Promise<ConceptMapNode> => {
+    const conversation = history
+        .filter(m => m.text && m.text.trim() !== '')
+        .map(m => `${m.sender}: ${m.text}`)
+        .join('\n');
+    
+    if (conversation.length < 50) {
+        throw new Error("Conversation is too short to generate a meaningful concept map.");
+    }
+    
+    const prompt = `Analyze the following conversation and generate a hierarchical concept map of the main topics and their sub-topics. The root node should be the main subject of the conversation. Keep topics concise.
+
+    Conversation:
+    ${conversation}`;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: conceptMapSchema
+        }
+    });
+
+    return JSON.parse(response.text);
 };

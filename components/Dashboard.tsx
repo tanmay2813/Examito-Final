@@ -17,23 +17,8 @@ const StatCard: React.FC<{ title: string; value: string | number; icon: string }
     </div>
 );
 
-// Helper to check if a date string 'yyyy-mm-dd' was yesterday, correcting for timezone issues.
-const isYesterday = (dateStr: string): boolean => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today to the start of the day in local time
-
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-
-    // Parse the date string into local timezone date components to avoid UTC conversion issues
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const checkDate = new Date(year, month - 1, day); // Month is 0-indexed
-
-    return yesterday.getTime() === checkDate.getTime();
-}
-
 const DailyFiveModal: React.FC<{ onClose: () => void; onComplete: () => void }> = ({ onClose, onComplete }) => {
-    const { userProfile, setUserProfile } = useContext(AppContext);
+    const { userProfile, recordDailyActivity } = useContext(AppContext);
     const [questions, setQuestions] = useState<Question[]>([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -73,24 +58,8 @@ const DailyFiveModal: React.FC<{ onClose: () => void; onComplete: () => void }> 
         if (currentQuestionIndex < questions.length - 1) {
             setCurrentQuestionIndex(i => i + 1);
         } else {
-            // Quiz finished
-            const xpEarned = 25 + (currentScore * 5);
-            const newXP = userProfile.XP + xpEarned;
-            const today = new Date().toISOString().split('T')[0];
-            
-            const newStreak = (userProfile.lastDailyCompletion && isYesterday(userProfile.lastDailyCompletion))
-                ? userProfile.streak + 1 
-                : 1;
-            
-            if (setUserProfile) {
-                setUserProfile({
-                    ...userProfile,
-                    XP: newXP,
-                    streak: newStreak,
-                    lastDailyCompletion: today,
-                });
-            }
-            toast.success(`Daily 5 Complete! You scored ${currentScore}/${questions.length} and earned ${xpEarned} XP!`, { duration: 4000, icon: '🎉' });
+            if (recordDailyActivity) recordDailyActivity();
+            toast.success(`Daily 5 Complete! You scored ${currentScore}/${questions.length}!`, { duration: 4000, icon: '🎉' });
             onComplete();
             onClose();
         }
@@ -186,9 +155,10 @@ const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = (
         <div className="space-y-8">
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-gray-100 animate-fade-in">Hey {userProfile?.name}, ready to learn?</h1>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="XP Points" value={userProfile?.XP || 0} icon="⭐" />
                 <StatCard title="Learning Streak" value={`${userProfile?.streak || 0} Days`} icon="🔥" />
+                <StatCard title="Streak Savers" value={userProfile?.streakFreezes || 0} icon="🧊" />
                 <StatCard title="Achievements" value={userProfile?.achievements.length || 0} icon="🏆" />
             </div>
 
@@ -259,18 +229,17 @@ const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = (
                     <button onClick={() => setActiveView(View.TUTOR)} className="mt-auto px-5 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600">Start Chat</button>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col items-start animate-fade-in">
-                    <h3 className="text-xl font-bold mb-2">Daily Challenge</h3>
+                    <h3 className="text-xl font-bold mb-2">Daily Bonus</h3>
                     <p className="text-gray-600 dark:text-gray-300 mb-4 flex-grow">
                         {dailyCompleted 
-                            ? "You've completed your daily challenge. Great job!" 
-                            : "Test your knowledge with 5 quick questions and boost your streak!"}
+                            ? "You've completed your daily activity. Great job!" 
+                            : "Complete a quick 5-question quiz for bonus XP!"}
                     </p>
                     <button
                         onClick={() => setShowDailyFive(true)}
-                        disabled={dailyCompleted}
                         className="mt-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-transform transform hover:scale-105"
                     >
-                        {dailyCompleted ? 'Completed' : 'Start The Daily 5'}
+                        Start The Daily 5
                     </button>
                 </div>
             </div>

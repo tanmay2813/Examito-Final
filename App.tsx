@@ -6,13 +6,12 @@ import { AppContext } from './contexts/AppContext';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import AdaptiveTutor from './components/AdaptiveTutor';
-import TestGenerator from './components/TestGenerator';
+import TestAndChallengeGenerator from './components/TestAndChallengeGenerator';
 import ProgressReports from './components/ProgressReports';
 import Timeline from './components/Timeline';
 import Login from './components/Login';
 import Flashcards from './components/Flashcards';
 import Achievements from './components/Achievements';
-import Challenges from './components/Challenges';
 import { View } from './types';
 import { Toaster } from 'react-hot-toast';
 
@@ -28,7 +27,7 @@ const AppContent: React.FC = () => {
             case View.TUTOR:
                 return <AdaptiveTutor />;
             case View.TESTS:
-                return <TestGenerator />;
+                return <TestAndChallengeGenerator />;
             case View.REPORTS:
                 return <ProgressReports />;
             case View.TIMELINE:
@@ -37,8 +36,6 @@ const AppContent: React.FC = () => {
                 return <Flashcards />;
             case View.ACHIEVEMENTS:
                 return <Achievements />;
-            case View.CHALLENGES:
-                return <Challenges />;
             default:
                 return <Dashboard setActiveView={setActiveView} />;
         }

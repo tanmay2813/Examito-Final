@@ -1,3 +1,4 @@
+
 import React, { useContext } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { View } from '../types';
@@ -10,7 +11,6 @@ import { ReportIcon } from './icons/ReportIcon';
 import { TimelineIcon } from './icons/TimelineIcon';
 import { FlashcardIcon } from './icons/FlashcardIcon';
 import { AchievementIcon } from './icons/AchievementIcon';
-import { ChallengeIcon } from './icons/ChallengeIcon';
 
 
 interface SidebarProps {
@@ -26,8 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
     const navItems = [
         { view: View.DASHBOARD, label: 'Dashboard', icon: DashboardIcon },
         { view: View.TUTOR, label: 'AI Tutor', icon: TutorIcon },
-        { view: View.TESTS, label: 'Test Generator', icon: TestIcon },
-        { view: View.CHALLENGES, label: 'Challenges', icon: ChallengeIcon },
+        { view: View.TESTS, label: 'Tests & Challenges', icon: TestIcon },
         { view: View.FLASHCARDS, label: 'Flashcards', icon: FlashcardIcon },
         { view: View.REPORTS, label: 'Reports', icon: ReportIcon },
         { view: View.TIMELINE, label: 'Timeline', icon: TimelineIcon },

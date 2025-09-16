@@ -14,6 +14,7 @@ interface AppContextType {
     updateMastery: ((topic: string, score: number) => void) | null;
     setDailyGoals: ((goals: DailyGoal[]) => void) | null;
     completeDailyGoal: ((goalId: string) => void) | null;
+    recordDailyActivity: (() => void) | null;
 }
 
 export const AppContext = createContext<AppContextType>({
@@ -27,4 +28,5 @@ export const AppContext = createContext<AppContextType>({
     updateMastery: null,
     setDailyGoals: null,
     completeDailyGoal: null,
+    recordDailyActivity: null,
 });
