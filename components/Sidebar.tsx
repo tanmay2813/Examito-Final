@@ -3,19 +3,15 @@
 
 import React, { useContext, useState, useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { View, LearningStyle } from '../types';
+import { View } from '../types';
 import { AppContext } from '../contexts/AppContext';
 
-import { DashboardIcon } from './icons/DashboardIcon';
+import { HomeIcon } from './icons/HomeIcon';
 import { TutorIcon } from './icons/TutorIcon';
+import { ReviewIcon } from './icons/ReviewIcon';
 import { TestIcon } from './icons/TestIcon';
-import { ReportIcon } from './icons/ReportIcon';
-import { TimelineIcon } from './icons/TimelineIcon';
-import { FlashcardIcon } from './icons/FlashcardIcon';
-import { AchievementIcon } from './icons/AchievementIcon';
+import { TrackIcon } from './icons/TrackIcon';
 import { StoreIcon } from './icons/StoreIcon';
-import { StudyPlannerIcon } from './icons/StudyPlannerIcon';
-import { StudyZoneIcon } from './icons/StudyZoneIcon';
 
 
 interface SidebarProps {
@@ -23,9 +19,10 @@ interface SidebarProps {
     setActiveView: Dispatch<SetStateAction<View>>;
     isOpen: boolean;
     setIsOpen: Dispatch<SetStateAction<boolean>>;
+    openCommandCenter: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, setIsOpen, openCommandCenter }) => {
     const { userProfile, setUserProfile } = useContext(AppContext);
     const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark'));
 
@@ -41,20 +38,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
     }, [isDarkMode]);
 
     const navItems = [
-        { view: View.DASHBOARD, label: 'Dashboard', icon: DashboardIcon },
-        { view: View.TUTOR, label: 'AI Tutor', icon: TutorIcon },
-        { view: View.STUDY_PLAN, label: 'Study Planner', icon: StudyPlannerIcon },
-        { view: View.TESTS, label: 'Tests & Challenges', icon: TestIcon },
-        { view: View.FLASHCARDS, label: 'Flashcards', icon: FlashcardIcon },
-        { view: View.REPORTS, label: 'Reports', icon: ReportIcon },
-        { view: View.TIMELINE, label: 'Timeline', icon: TimelineIcon },
-        { view: View.STUDY_ZONE, label: 'Study Zone', icon: StudyZoneIcon },
-        { view: View.ACHIEVEMENTS, label: 'Achievements', icon: AchievementIcon },
+        { view: View.HOME, label: 'Home', icon: HomeIcon },
+        { view: View.LEARN, label: 'Learn', icon: TutorIcon },
+        { view: View.REVIEW, label: 'Review', icon: ReviewIcon },
+        { view: View.PRACTICE, label: 'Practice', icon: TestIcon },
+        { view: View.TRACK, label: 'Track', icon: TrackIcon },
         { view: View.STORE, label: 'Store', icon: StoreIcon },
     ];
     
     const handleLogout = () => {
-        if(window.confirm('Are you sure you want to logout? This will clear your data.')) {
+        if(window.confirm('Are you sure you want to logout and reset your progress?')) {
             if (setUserProfile) setUserProfile(null);
         }
     }
@@ -64,11 +57,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
         setIsOpen(false); // Close sidebar on navigation in mobile
     };
     
-    const handleLearningStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        if (userProfile && setUserProfile) {
-            setUserProfile({ ...userProfile, learningStyle: e.target.value as LearningStyle });
-        }
-    };
+    const level = userProfile ? Math.floor(userProfile.XP / 100) : 0;
+    const xpForCurrentLevel = level * 100;
+    const xpForNextLevel = (level + 1) * 100;
+    const xpProgress = userProfile ? ((userProfile.XP - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel)) * 100 : 0;
 
 
     return (
@@ -81,10 +73,30 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
             <aside className={`w-64 bg-white dark:bg-gray-800 flex flex-col shadow-lg fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-6 border-b border-gray-200 dark:border-gray-700">
                     <h1 className="text-3xl font-extrabold text-green-600 dark:text-green-400">Examito</h1>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Built by Tanmay Garg and Saanvi Jha</p>
-                    <p className="text-md text-gray-600 dark:text-gray-400 mt-4">Welcome, {userProfile?.name}!</p>
                 </div>
+
+                <div className="p-4 space-y-4">
+                     <p className="text-lg text-gray-700 dark:text-gray-300 font-semibold">Welcome, {userProfile?.name}!</p>
+                     <div className="space-y-2">
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="font-bold">Level: {level}</span>
+                            <span className="font-bold text-green-500">{userProfile?.XP} / {xpForNextLevel} XP</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                            <div 
+                                className="bg-green-500 h-2.5 rounded-full progress-bar-inner" 
+                                style={{ width: `${xpProgress}%` }}
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                    <button onClick={openCommandCenter} className="w-full flex items-center p-3 mb-2 rounded-xl text-left bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+                        Command...
+                        <span className="ml-auto text-xs border border-gray-300 dark:border-gray-500 rounded px-1.5 py-0.5">⌘K</span>
+                    </button>
                     {navItems.map(item => {
                         const isActive = activeView === item.view;
                         return (
@@ -94,7 +106,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
                                 className={`w-full flex items-center p-3 rounded-xl text-left transition-colors duration-200 ${
                                     isActive 
                                     ? 'bg-green-500 text-white shadow-md' 
-                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                             >
                                 <item.icon className={`mr-4 h-5 w-5 ${isActive ? 'text-white' : 'text-gray-500 dark:text-gray-400'}`} />
@@ -104,21 +116,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
                     })}
                 </nav>
                 <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
-                     <div className="flex items-center justify-between">
-                        <label htmlFor="learning-style" className="text-sm font-medium text-gray-700 dark:text-gray-300">Learning Style</label>
-                        <select
-                            id="learning-style"
-                            value={userProfile?.learningStyle || 'none'}
-                            onChange={handleLearningStyleChange}
-                            className="p-1 text-sm border rounded-md dark:bg-gray-700 dark:border-gray-600 text-gray-800 dark:text-gray-200 focus:ring-green-500 focus:border-green-500"
-                        >
-                            <option value="none">Default</option>
-                            <option value="visual">Visual</option>
-                            <option value="aural">Aural</option>
-                            <option value="read/write">Read/Write</option>
-                            <option value="kinesthetic">Kinesthetic</option>
-                        </select>
-                    </div>
                      <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Dark Mode</span>
                         <button
@@ -134,10 +131,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, se
                             />
                         </button>
                     </div>
+                    <p className="text-xs text-center text-gray-400 dark:text-gray-500 px-4">
+                        Crafted by Tanmay Garg and Saanvi Jha
+                    </p>
                      <button 
                         onClick={handleLogout}
-                        className="w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors duration-200"
+                        className="w-full bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition-colors duration-200 flex items-center justify-center gap-2"
                     >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                         Logout & Reset
                     </button>
                 </div>

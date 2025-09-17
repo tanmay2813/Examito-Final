@@ -8,44 +8,45 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import AdaptiveTutor from './components/AdaptiveTutor';
 import TestAndChallengeGenerator from './components/TestAndChallengeGenerator';
-import ProgressReports from './components/ProgressReports';
-import Timeline from './components/Timeline';
-import Login from './components/Login';
-import Flashcards from './components/Flashcards';
-import Achievements from './components/Achievements';
+import Review from './components/Review';
+import Track from './components/Track';
 import Store from './components/Store';
-import StudyPlanner from './components/StudyPlanner';
-import StudyZone from './components/StudyZone';
+import Login from './components/Login';
+import CommandCenter from './components/CommandCenter';
 import { View } from './types';
 import { Toaster } from 'react-hot-toast';
 
 const AppContent: React.FC = () => {
     const { userProfile, loading } = useContext(AppContext);
-    const [activeView, setActiveView] = useState<View>(View.DASHBOARD);
+    const [activeView, setActiveView] = useState<View>(View.HOME);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setIsCommandCenterOpen(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const renderView = () => {
         switch (activeView) {
-            case View.DASHBOARD:
+            case View.HOME:
                 return <Dashboard setActiveView={setActiveView} />;
-            case View.TUTOR:
+            case View.LEARN:
                 return <AdaptiveTutor />;
-            case View.TESTS:
+            case View.REVIEW:
+                return <Review />;
+            case View.PRACTICE:
                 return <TestAndChallengeGenerator />;
-            case View.REPORTS:
-                return <ProgressReports />;
-            case View.TIMELINE:
-                return <Timeline />;
-            case View.FLASHCARDS:
-                return <Flashcards />;
-            case View.ACHIEVEMENTS:
-                return <Achievements />;
+            case View.TRACK:
+                return <Track />;
             case View.STORE:
                 return <Store />;
-            case View.STUDY_PLAN:
-                return <StudyPlanner />;
-            case View.STUDY_ZONE:
-                return <StudyZone />;
             default:
                 return <Dashboard setActiveView={setActiveView} />;
         }
@@ -61,10 +62,11 @@ const AppContent: React.FC = () => {
     
     return (
         <div className="h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex overflow-hidden">
+            <CommandCenter isOpen={isCommandCenterOpen} setIsOpen={setIsCommandCenterOpen} setActiveView={setActiveView} />
             {userProfile ? (
                 <>
-                    <Sidebar activeView={activeView} setActiveView={setActiveView} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-                    <main className={`flex-1 p-4 md:p-6 flex flex-col ${activeView === View.TUTOR ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
+                    <Sidebar activeView={activeView} setActiveView={setActiveView} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} openCommandCenter={() => setIsCommandCenterOpen(true)} />
+                    <main className={`flex-1 p-4 md:p-6 flex flex-col ${activeView === View.LEARN ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
                          <button
                             className="md:hidden p-2 mb-4 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0"
                             onClick={() => setIsSidebarOpen(true)}

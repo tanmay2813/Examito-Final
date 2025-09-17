@@ -2,16 +2,12 @@
 
 
 export enum View {
-    DASHBOARD = 'DASHBOARD',
-    TUTOR = 'TUTOR',
-    TESTS = 'TESTS',
-    REPORTS = 'REPORTS',
-    TIMELINE = 'TIMELINE',
-    FLASHCARDS = 'FLASHCARDS',
-    ACHIEVEMENTS = 'ACHIEVEMENTS',
+    HOME = 'HOME',
+    LEARN = 'LEARN',
+    REVIEW = 'REVIEW',
+    PRACTICE = 'PRACTICE',
+    TRACK = 'TRACK',
     STORE = 'STORE',
-    STUDY_PLAN = 'STUDY_PLAN',
-    STUDY_ZONE = 'STUDY_ZONE',
 }
 
 export interface Flashcard {
@@ -33,7 +29,7 @@ export interface DailyGoal {
 }
 
 export interface Achievement {
-    id: string; // e.g., 'STREAK_CHAMPION_7'
+    id:string; // e.g., 'STREAK_CHAMPION_7'
     name: string;
     description: string;
     icon: string;
@@ -137,6 +133,13 @@ export interface Message {
         type: string;
         base64Data?: string;
     }[];
+    analysisResult?: string; // To hold results from file analysis
+}
+
+// FIX: Define and export the missing ConceptMapNode type.
+export interface ConceptMapNode {
+    topic: string;
+    children?: ConceptMapNode[];
 }
 
 // Timeline Entry Types
@@ -174,9 +177,3 @@ export interface ConceptTimelineEntry {
 }
 
 export type TimelineEntry = TestTimelineEntry | UserTimelineEntry | ConceptTimelineEntry;
-
-// FIX: Added missing ConceptMapNode interface to resolve import error in ConceptMapModal.tsx.
-export interface ConceptMapNode {
-    topic: string;
-    children?: ConceptMapNode[];
-}

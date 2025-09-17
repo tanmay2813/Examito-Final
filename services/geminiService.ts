@@ -347,7 +347,6 @@ Break the plan into weeks. For each day of the week, provide a specific, actiona
     return JSON.parse(jsonText);
 };
 
-// FIX: Added missing analyzeFileContent function to resolve import error in FileAnalyzer.tsx.
 export const analyzeFileContent = async (base64Data: string, mimeType: string, prompt: string): Promise<string> => {
     const ai = getAi();
 

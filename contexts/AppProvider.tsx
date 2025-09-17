@@ -1,4 +1,9 @@
 
+
+
+
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppContext } from './AppContext';
 import { saveUserProfile, loadUserProfile } from '../services/localStorageService';
@@ -15,31 +20,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     useEffect(() => {
         const profile = loadUserProfile();
         if (profile) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
             if (profile.lastDailyCompletion) {
-                const lastCompletionDate = new Date(profile.lastDailyCompletion);
-                // Adjust for timezone by getting date parts and reconstructing
-                const utcDate = new Date(lastCompletionDate.getUTCFullYear(), lastCompletionDate.getUTCMonth(), lastCompletionDate.getUTCDate());
-                utcDate.setHours(0,0,0,0);
+                const today = new Date();
+                const todayStr = today.toISOString().split('T')[0];
                 
-                const diffTime = today.getTime() - utcDate.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const yesterday = new Date();
+                yesterday.setDate(today.getDate() - 1);
+                const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-                if (diffDays === 2 && profile.streakFreezes > 0) {
-                    // Missed yesterday, but has a freeze
-                    profile.streakFreezes -= 1;
-                    const yesterday = new Date(today);
-                    yesterday.setDate(today.getDate() - 1);
-                    profile.lastDailyCompletion = yesterday.toISOString().split('T')[0];
-                    toast('Your streak was saved with a freeze! 🧊', { duration: 4000, icon: '🛡️' });
-                } else if (diffDays > 1) {
-                    // Missed more than a day or no freezes left
-                    if (profile.streak > 0) {
-                        toast.error(`Your ${profile.streak}-day streak was lost. Keep learning to start a new one!`, { icon: '💔' });
+                // If the last completion was neither today nor yesterday, the streak is at risk.
+                if (profile.lastDailyCompletion !== todayStr && profile.lastDailyCompletion !== yesterdayStr) {
+                    const dayBeforeYesterday = new Date();
+                    dayBeforeYesterday.setDate(today.getDate() - 2);
+                    const dayBeforeYesterdayStr = dayBeforeYesterday.toISOString().split('T')[0];
+
+                    // Check if a streak saver can be used (if they missed exactly one day)
+                    if (profile.lastDailyCompletion === dayBeforeYesterdayStr && profile.streakFreezes > 0) {
+                        profile.streakFreezes -= 1;
+                        // We "back-date" the last completion to yesterday, saving the streak.
+                        // When they complete an activity today, the streak will correctly increment.
+                        profile.lastDailyCompletion = yesterdayStr;
+                        toast('Your streak was saved with a freeze! 🧊', { duration: 4000, icon: '🛡️' });
+                    } else {
+                        // If they missed more than one day, or have no savers, the streak is lost.
+                        if (profile.streak > 0) {
+                            toast.error(`Your ${profile.streak}-day streak was lost. Keep learning to start a new one!`, { icon: '💔' });
+                        }
+                        profile.streak = 0;
                     }
-                    profile.streak = 0;
                 }
             }
             setUserProfileState(profile);
@@ -104,8 +112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let profileUpdate = { ...userProfile };
         if (userProfile.doubleXpUntil && new Date(userProfile.doubleXpUntil) <= new Date()) {
             profileUpdate.doubleXpUntil = null;
-            // FIX: The 'info' method does not exist on the 'toast' object. 
-            // Replaced `toast.info` with a standard `toast()` call to display the informational message.
+            // FIX: The `react-hot-toast` library does not have a `.info` method. Use the base `toast()` for informational messages.
             toast('Your Double XP boost has expired.', { icon: '⏳' });
         }
 

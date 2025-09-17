@@ -1,129 +1,109 @@
 
 
-import React, { useContext, useState, useEffect, useCallback } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { AppContext } from '../contexts/AppContext';
-import { View, type Question, type DailyGoal } from '../types';
-import { generateDailyQuestions, generateDailyGoals, generateDailyTeaser, generateDashboardInsight } from '../services/geminiService';
+import { View, type DailyGoal, Question } from '../types';
+import { generateDailyGoals, generateDashboardInsight, generateDailyQuestions } from '../services/geminiService';
 import toast from 'react-hot-toast';
 
-const StatCard: React.FC<{ title: string; value: string | number; icon: string }> = ({ title, value, icon }) => (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg flex items-center space-x-4 animate-fade-in">
-        <div className="text-4xl">{icon}</div>
-        <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-semibold">{title}</p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{value}</p>
-        </div>
-    </div>
-);
-
-const DailyFiveModal: React.FC<{ onClose: () => void; onComplete: () => void }> = ({ onClose, onComplete }) => {
-    const { userProfile, recordDailyActivity } = useContext(AppContext);
-    const [questions, setQuestions] = useState<Question[]>([]);
-    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+const Daily5Modal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const { userProfile, addXP } = useContext(AppContext);
+    const [questions, setQuestions] = useState<Question[] | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [currentQ, setCurrentQ] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [isSubmitted, setIsSubmitted] = useState(false);
     const [score, setScore] = useState(0);
+    const [isFinished, setIsFinished] = useState(false);
 
-    const fetchQuestions = useCallback(async () => {
-        if (!userProfile) return;
-        try {
-            setLoading(true);
-            const dailyQuestions = await generateDailyQuestions(userProfile.board);
-            setQuestions(dailyQuestions);
-        } catch (error) {
-            toast.error('Failed to load daily questions. Please try again later.');
-            onClose();
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        if (userProfile) {
+            generateDailyQuestions(userProfile.board)
+                .then(setQuestions)
+                .catch(err => {
+                    console.error("Failed to load Daily 5:", err);
+                    toast.error("Could not load the Daily 5 quiz.");
+                    onClose();
+                })
+                .finally(() => setIsLoading(false));
         }
     }, [userProfile, onClose]);
 
-    useEffect(() => {
-        fetchQuestions();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const handleAnswer = () => {
-        if (!selectedAnswer || !userProfile) return;
-
-        let currentScore = score;
-        if (selectedAnswer === questions[currentQuestionIndex].correctAnswer) {
-            currentScore += 1;
-            setScore(currentScore);
-        }
-
+    const handleNext = () => {
+        if (!questions) return;
+        const isCorrect = selectedAnswer === questions[currentQ].correctAnswer;
+        if (isCorrect) setScore(s => s + 1);
+        
+        setIsSubmitted(false);
         setSelectedAnswer(null);
 
-        if (currentQuestionIndex < questions.length - 1) {
-            setCurrentQuestionIndex(i => i + 1);
+        if (currentQ < questions.length - 1) {
+            setCurrentQ(q => q + 1);
         } else {
-            if (recordDailyActivity) recordDailyActivity();
-            toast.success(`Daily 5 Complete! You scored ${currentScore}/${questions.length}!`, { duration: 4000, icon: '🎉' });
-            onComplete();
-            onClose();
+            setIsFinished(true);
+            if (addXP) {
+                const finalScore = isCorrect ? score + 1 : score;
+                addXP(finalScore * 5, "Daily 5 Quiz"); // 5 XP per correct answer
+            }
         }
     };
 
-    if (loading) return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-2xl">
-                <div className="text-center p-8 font-bold text-lg">Generating your Daily 5... ✨</div>
+    if (isLoading) return <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"><div className="text-white">Loading Quiz...</div></div>;
+    if (!questions || questions.length === 0) return null;
+
+    const question = questions[currentQ];
+
+    const renderQuiz = () => (
+        <>
+            <h3 className="text-lg font-bold mb-4">{currentQ + 1}. {question.questionText}</h3>
+            <div className="space-y-2 mb-4">
+                {question.options.map(option => {
+                    const isCorrect = option === question.correctAnswer;
+                    const isSelected = option === selectedAnswer;
+                    let buttonClass = 'bg-gray-100 dark:bg-gray-600 hover:border-blue-400';
+                    if (isSubmitted) {
+                        if (isCorrect) buttonClass = 'bg-green-200 dark:bg-green-800 border-green-500';
+                        else if (isSelected) buttonClass = 'bg-red-200 dark:bg-red-800 border-red-500';
+                    } else if (isSelected) { buttonClass = 'bg-blue-500 border-blue-500 text-white font-bold'; }
+                    return <button key={option} onClick={() => !isSubmitted && setSelectedAnswer(option)} disabled={isSubmitted} className={`w-full text-left p-3 rounded-xl border-2 transition-all ${buttonClass}`}>{option}</button>;
+                })}
             </div>
-        </div>
-    );
-        
-    if (questions.length === 0) return (
-         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 w-full max-w-2xl">
-                <div className="text-center p-8">Could not load questions. Please try again later.</div>
-            </div>
-        </div>
+            {!isSubmitted && <button onClick={() => setIsSubmitted(true)} disabled={!selectedAnswer} className="w-full py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-gray-400">Submit</button>}
+            {isSubmitted && <button onClick={handleNext} className="w-full py-2 bg-green-600 text-white font-semibold rounded-lg">Next</button>}
+        </>
     );
 
-    const currentQuestion = questions[currentQuestionIndex];
-
+    const renderFinished = () => (
+        <div className="text-center">
+            <h2 className="text-2xl font-bold mb-4">Daily 5 Complete!</h2>
+            <p className="text-4xl font-bold mb-4">{score}/{questions.length}</p>
+            <p className="mb-4">You earned {score * 5} XP!</p>
+            <button onClick={onClose} className="w-full py-2 bg-green-600 text-white font-semibold rounded-lg">Close</button>
+        </div>
+    );
+    
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-2xl">
-                <h2 className="text-xl sm:text-2xl font-bold mb-4">The Daily 5 - Question {currentQuestionIndex + 1}/5</h2>
-                <p className="mb-6 text-md sm:text-lg">{currentQuestion.questionText}</p>
-                <div className="space-y-3 mb-6">
-                    {currentQuestion.options.map(option => (
-                        <button
-                            key={option}
-                            onClick={() => setSelectedAnswer(option)}
-                            className={`w-full text-left p-4 rounded-xl border-2 transition-all transform hover:scale-105 ${selectedAnswer === option ? 'bg-green-500 border-green-500 text-white font-bold' : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:border-green-400'}`}
-                        >
-                            {option}
-                        </button>
-                    ))}
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+            <div className="w-full max-w-lg bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Daily 5 Challenge</h2>
+                    {!isFinished && <button onClick={onClose} className="text-2xl">&times;</button>}
                 </div>
-                <div className="flex justify-end space-x-4">
-                     <button onClick={onClose} className="px-4 py-2 bg-gray-300 dark:bg-gray-600 rounded-lg">Cancel</button>
-                    <button onClick={handleAnswer} disabled={!selectedAnswer} className="px-6 py-2 bg-green-600 text-white rounded-lg disabled:bg-gray-400 font-semibold">
-                        {currentQuestionIndex === questions.length - 1 ? 'Finish' : 'Next'}
-                    </button>
-                </div>
+                {isFinished ? renderFinished() : renderQuiz()}
             </div>
         </div>
     );
 };
 
 
-const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = ({ setActiveView }) => {
+const DailyGoalsWidget: React.FC = () => {
     const { userProfile, setDailyGoals, completeDailyGoal, setUserProfile } = useContext(AppContext);
-    const [showDailyFive, setShowDailyFive] = useState(false);
-    
-    const today = new Date().toISOString().split('T')[0];
-    const dailyCompleted = userProfile?.lastDailyCompletion === today;
 
-    // Daily Goals Logic
     useEffect(() => {
-        if (!userProfile) return;
+        if (!userProfile || !setUserProfile) return;
         const todayStr = new Date().toISOString().split('T')[0];
         if (userProfile.dailyGoals?.date !== todayStr) {
-            // Generate new goals for today
             generateDailyGoals(userProfile).then(goals => {
                 if(setDailyGoals) setDailyGoals(goals);
             }).catch(err => {
@@ -131,160 +111,194 @@ const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = (
                 toast.error("Could not load daily goals.");
             });
         }
-    }, [userProfile, setDailyGoals]);
-    
-    // Daily Teaser Logic
-    useEffect(() => {
-        if (!userProfile || !setUserProfile) return;
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (userProfile.dailyTeaser?.date !== todayStr) {
-            generateDailyTeaser(userProfile.board).then(teaser => {
-                setUserProfile({ ...userProfile, dailyTeaser: { date: todayStr, teaser } });
-            }).catch(err => console.error("Failed to generate daily teaser:", err));
-        }
-    }, [userProfile, setUserProfile]);
-    
-     // Daily Insight Logic
-    useEffect(() => {
-        if (!userProfile || !setUserProfile) return;
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (userProfile.dashboardInsight?.date !== todayStr) {
-            generateDashboardInsight(userProfile).then(insight => {
-                setUserProfile({ ...userProfile, dashboardInsight: { date: todayStr, insight } });
-            }).catch(err => console.error("Failed to generate dashboard insight:", err));
-        }
-    }, [userProfile, setUserProfile]);
+    }, [userProfile, setDailyGoals, setUserProfile]);
 
     const handleGoalToggle = (goalId: string, isCompleted: boolean) => {
         if (!isCompleted && completeDailyGoal) {
             completeDailyGoal(goalId);
         }
     };
-    
-    // Mastery Logic
-    const topMasteryTopics = Object.entries(userProfile?.mastery || {})
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 3);
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
+            <h2 className="text-xl font-bold mb-4">Today's Goals</h2>
+            <div className="space-y-3">
+                {userProfile?.dailyGoals?.goals && userProfile.dailyGoals.goals.length > 0 ? (
+                    userProfile.dailyGoals.goals.map(goal => (
+                        <div key={goal.id} className="flex items-center">
+                            <input 
+                                type="checkbox" 
+                                id={`goal-${goal.id}`} 
+                                checked={goal.isCompleted} 
+                                onChange={() => handleGoalToggle(goal.id, goal.isCompleted)}
+                                className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                                disabled={goal.isCompleted}
+                            />
+                            <label htmlFor={`goal-${goal.id}`} className={`ml-3 text-gray-700 dark:text-gray-300 ${goal.isCompleted ? 'line-through text-gray-400' : ''}`}>
+                                {goal.description} <span className="text-green-500 font-medium">(+{goal.xp} XP)</span>
+                            </label>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-gray-500">Loading your goals for today...</p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const QuickActionsWidget: React.FC<{ setActiveView: Dispatch<SetStateAction<View>>, openDaily5: () => void }> = ({ setActiveView, openDaily5 }) => (
+    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
+        <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
+        <div className="space-y-3">
+             <button onClick={openDaily5} className="w-full text-left p-3 rounded-lg bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors">
+                <span className="font-semibold text-green-800 dark:text-green-200">⚡ Take the Daily 5</span>
+            </button>
+            <button onClick={() => setActiveView(View.PRACTICE)} className="w-full text-left p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                <span className="font-semibold text-blue-800 dark:text-blue-200">🎯 Start a New Test</span>
+            </button>
+             <button onClick={() => setActiveView(View.REVIEW)} className="w-full text-left p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors">
+                <span className="font-semibold text-purple-800 dark:text-purple-200">🃏 Review Flashcards</span>
+            </button>
+        </div>
+    </div>
+);
+
+const TimelineWidget: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = ({ setActiveView }) => {
+    const { userProfile } = useContext(AppContext);
+    const upcomingEvents = useMemo(() => {
+        if (!userProfile) return [];
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        return userProfile.timeline
+            .filter(e => new Date(e.date) >= today)
+            .slice(0, 3);
+    }, [userProfile]);
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Upcoming Events</h2>
+                <button onClick={() => setActiveView(View.TRACK)} className="text-sm text-green-500 font-semibold hover:underline">View All</button>
+            </div>
+            <div className="space-y-3">
+                {upcomingEvents.length > 0 ? upcomingEvents.map(event => (
+                    <div key={event.id} className="bg-gray-50 dark:bg-gray-700 p-2 rounded-md">
+                        <p className="font-semibold text-sm truncate">{event.title}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(event.date).toLocaleDateString()}</p>
+                    </div>
+                )) : (
+                    <p className="text-gray-500 text-sm">No upcoming events in your timeline.</p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const StatsWidget: React.FC = () => {
+    const { userProfile } = useContext(AppContext);
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
+            <h2 className="text-xl font-bold mb-4">Your Stats</h2>
+            <div className="flex justify-around text-center">
+                <div>
+                    <p className="text-4xl font-bold text-green-500">{userProfile?.streak || 0}<span className="text-2xl">🔥</span></p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Day Streak</p>
+                </div>
+                <div>
+                    <p className="text-4xl font-bold text-blue-500">{userProfile?.streakFreezes || 0}<span className="text-2xl">🧊</span></p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Streak Savers</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const DailyInsightWidget: React.FC = () => {
+    const { userProfile, setUserProfile } = useContext(AppContext);
+
+    useEffect(() => {
+        if (!userProfile || !setUserProfile) return;
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (userProfile.dashboardInsight?.date !== todayStr) {
+            generateDashboardInsight(userProfile).then(insight => {
+                if (setUserProfile) {
+                    setUserProfile({ ...userProfile, dashboardInsight: { date: todayStr, insight } });
+                }
+            }).catch(err => {
+                console.error("Failed to generate dashboard insight:", err);
+            });
+        }
+    }, [userProfile, setUserProfile]);
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
+            <h2 className="text-xl font-bold mb-4">💡 Daily Insight</h2>
+            <p className="text-gray-600 dark:text-gray-300 text-sm">
+                {userProfile?.dashboardInsight?.insight || "Generating your insight for today..."}
+            </p>
+        </div>
+    );
+};
+
+const RecentAchievementsWidget: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = ({ setActiveView }) => {
+    const { userProfile } = useContext(AppContext);
+    const recentAchievements = useMemo(() => {
+        if (!userProfile) return [];
+        return [...userProfile.achievements].reverse().slice(0, 3);
+    }, [userProfile]);
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Recent Achievements</h2>
+                <button onClick={() => setActiveView(View.TRACK)} className="text-sm text-green-500 font-semibold hover:underline">View All</button>
+            </div>
+            <div className="space-y-3">
+                {recentAchievements.length > 0 ? recentAchievements.map(ach => (
+                    <div key={ach.id} className="flex items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+                        <span className="text-2xl mr-3">{ach.icon}</span>
+                        <div>
+                            <p className="font-semibold text-sm">{ach.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{ach.description}</p>
+                        </div>
+                    </div>
+                )) : (
+                    <p className="text-gray-500 text-sm">Keep learning to unlock your first achievement!</p>
+                )}
+            </div>
+        </div>
+    );
+};
 
 
-    const level = userProfile ? Math.floor(userProfile.XP / 100) : 0;
-    const xpForCurrentLevel = level * 100;
-    const xpForNextLevel = (level + 1) * 100;
-    const xpProgress = userProfile ? ((userProfile.XP - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel)) * 100 : 0;
-
+const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = ({ setActiveView }) => {
+    const { userProfile } = useContext(AppContext);
+    const [showDaily5, setShowDaily5] = useState(false);
 
     return (
         <div className="space-y-8">
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-gray-100 animate-fade-in">Hey {userProfile?.name}, ready to learn?</h1>
-            
-            {userProfile?.dashboardInsight && (
-                 <div className="bg-blue-100 dark:bg-blue-900/50 border-l-4 border-blue-400 text-blue-800 dark:text-blue-200 p-4 rounded-r-lg shadow-md animate-fade-in">
-                    <p className="font-bold">🚀 Your Daily Insight</p>
-                    <p>{userProfile.dashboardInsight.insight}</p>
-                </div>
-            )}
-
-            {userProfile?.dailyTeaser && (
-                 <div className="bg-yellow-100 dark:bg-yellow-900/50 border-l-4 border-yellow-400 text-yellow-800 dark:text-yellow-200 p-4 rounded-r-lg shadow-md animate-fade-in">
-                    <p className="font-bold">💡 Today's Brain Teaser</p>
-                    <p>{userProfile.dailyTeaser.teaser}</p>
-                </div>
-            )}
-
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="XP Points" value={userProfile?.XP || 0} icon="⭐" />
-                <StatCard title="Learning Streak" value={`${userProfile?.streak || 0} Days`} icon="🔥" />
-                <StatCard title="Streak Savers" value={userProfile?.streakFreezes || 0} icon="🧊" />
-                <StatCard title="Achievements" value={userProfile?.achievements.length || 0} icon="🏆" />
+            {showDaily5 && <Daily5Modal onClose={() => setShowDaily5(false)} />}
+            <div className="p-8 rounded-2xl bg-gradient-to-r from-green-500 to-blue-500 text-white shadow-xl animate-fade-in">
+                <h1 className="text-3xl sm:text-4xl font-bold">Hey {userProfile?.name}!</h1>
+                <p className="mt-2 text-lg">What will you master today?</p>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-4 animate-fade-in">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-bold">Your Level: {level}</h2>
-                    <span className="font-bold text-green-500">XP: {userProfile?.XP} / {xpForNextLevel}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* Main Column */}
+                <div className="lg:col-span-2 space-y-6">
+                    <DailyGoalsWidget />
+                    <RecentAchievementsWidget setActiveView={setActiveView} />
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4">
-                    <div 
-                        className="bg-green-500 h-4 rounded-full progress-bar-inner" 
-                        style={{ width: `${xpProgress}%` }}
-                    ></div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg animate-fade-in">
-                    <h2 className="text-2xl font-bold mb-4">Today's Goals</h2>
-                    <div className="space-y-3">
-                        {userProfile?.dailyGoals?.goals && userProfile.dailyGoals.goals.length > 0 ? (
-                            userProfile.dailyGoals.goals.map(goal => (
-                                <div key={goal.id} className="flex items-center">
-                                    <input 
-                                        type="checkbox" 
-                                        id={`goal-${goal.id}`} 
-                                        checked={goal.isCompleted} 
-                                        onChange={() => handleGoalToggle(goal.id, goal.isCompleted)}
-                                        className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
-                                        disabled={goal.isCompleted}
-                                    />
-                                    <label htmlFor={`goal-${goal.id}`} className={`ml-3 text-gray-700 dark:text-gray-300 ${goal.isCompleted ? 'line-through text-gray-400' : ''}`}>
-                                        {goal.description} <span className="text-green-500 font-medium">(+{goal.xp} XP)</span>
-                                     </label>
-                                </div>
-                            ))
-                        ) : (
-                            <p className="text-gray-500">Loading your goals for today...</p>
-                        )}
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg animate-fade-in">
-                    <h2 className="text-2xl font-bold mb-4">Top Concepts</h2>
-                     <div className="space-y-3">
-                        {topMasteryTopics.length > 0 ? (
-                            topMasteryTopics.map(([topic, score]) => (
-                                <div key={topic}>
-                                    <div className="flex justify-between mb-1">
-                                        <span className="text-base font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                            {topic}
-                                            {userProfile?.conceptStreaks[topic] > 2 && <span className="ml-2" title={`Concept Streak: ${userProfile.conceptStreaks[topic]}`}>🔥</span>}
-                                        </span>
-                                        <span className="text-sm font-medium text-green-600 dark:text-green-400">{score}% Mastery</span>
-                                    </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                                        <div className="bg-green-500 h-2.5 rounded-full" style={{width: `${score}%`}}></div>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                             <p className="text-gray-500">Take some tests to see your concept mastery!</p>
-                        )}
-                    </div>
+                
+                 {/* Side Column */}
+                <div className="space-y-6">
+                    <StatsWidget />
+                    <DailyInsightWidget />
+                    <QuickActionsWidget setActiveView={setActiveView} openDaily5={() => setShowDaily5(true)} />
+                    <TimelineWidget setActiveView={setActiveView} />
                 </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col items-start animate-fade-in">
-                    <h3 className="text-xl font-bold mb-2">AI Tutor</h3>
-                    <p className="text-gray-600 dark:text-gray-300 mb-4 flex-grow">Have a question or a document? Get instant help from your AI tutor that adapts to your learning style.</p>
-                    <button onClick={() => setActiveView(View.TUTOR)} className="mt-auto px-5 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600">Start Chat</button>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col items-start animate-fade-in">
-                    <h3 className="text-xl font-bold mb-2">Daily Bonus</h3>
-                    <p className="text-gray-600 dark:text-gray-300 mb-4 flex-grow">
-                        {dailyCompleted 
-                            ? "You've completed your daily activity. Great job!" 
-                            : "Complete a quick 5-question quiz for bonus XP!"}
-                    </p>
-                    <button
-                        onClick={() => setShowDailyFive(true)}
-                        className="mt-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-transform transform hover:scale-105"
-                    >
-                        Start The Daily 5
-                    </button>
-                </div>
-            </div>
-            
-            {showDailyFive && <DailyFiveModal onClose={() => setShowDailyFive(false)} onComplete={() => {}} />}
         </div>
     );
 };

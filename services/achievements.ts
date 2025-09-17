@@ -9,7 +9,6 @@ export interface AchievementDefinition {
     check: (profile: UserProfile) => boolean;
 }
 
-// FIX: Export ACHIEVEMENT_DEFINITIONS to make it available for import in other modules.
 export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     {
         id: 'FIRST_LOGIN',
