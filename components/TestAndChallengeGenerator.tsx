@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateTestQuestions, getMistakeExplanation } from '../services/geminiService';
@@ -10,7 +12,7 @@ import toast from 'react-hot-toast';
 const TIME_PER_QUESTION = 20; // 20 seconds per question for challenges
 
 const TestAndChallengeGenerator: React.FC = () => {
-    const { userProfile, setUserProfile, updateMastery, addXP } = useContext(AppContext);
+    const { userProfile, setUserProfile, updateMastery, addXP, recordDailyActivity } = useContext(AppContext);
     
     const [topic, setTopic] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -84,6 +86,8 @@ const TestAndChallengeGenerator: React.FC = () => {
     const handleSubmit = () => {
         if (!currentQuiz || !userProfile || !setUserProfile || !addXP) return;
         
+        if (recordDailyActivity) recordDailyActivity();
+
         let correctAnswers = 0;
         let updatedProfile = { ...userProfile };
 

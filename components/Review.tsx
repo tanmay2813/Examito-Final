@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateSmartReviewSelection } from '../services/geminiService';
@@ -163,37 +165,90 @@ const FlashcardsView: React.FC = () => {
 };
 
 // --- Mistake Zone Components ---
-// This is a simplified version of the Test component, focused only on reviewing past mistakes.
 const MistakeZoneView: React.FC = () => {
-    const { userProfile, setUserProfile } = useContext(AppContext);
-    const [currentQuiz, setCurrentQuiz] = useState<Question[] | null>(null);
-    const [answers, setAnswers] = useState<string[]>([]);
-    
+    const { userProfile, updateMastery } = useContext(AppContext);
+    const [quiz, setQuiz] = useState<Question[] | null>(null);
+    const [currentQ, setCurrentQ] = useState(0);
+    const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [score, setScore] = useState(0);
+    const [isFinished, setIsFinished] = useState(false);
+
     const pastMistakes = useMemo(() => {
         if (!userProfile) return [];
         const incorrectQuestions = new Map<string, Question>();
-        userProfile.tests.forEach(test => { test.questions.forEach(q => { if (q.isCorrect === false) incorrectQuestions.set(q.questionText, q); }); });
+        userProfile.tests.forEach(test => {
+            test.questions.forEach(q => {
+                if (q.isCorrect === false) {
+                    incorrectQuestions.set(q.questionText, q);
+                }
+            });
+        });
         return Array.from(incorrectQuestions.values());
     }, [userProfile]);
 
     const handleGenerateMistakesQuiz = () => {
-        if (pastMistakes.length < 3) { toast.error("You need at least 3 past mistakes to review!"); return; }
+        if (pastMistakes.length < 3) {
+            toast.error("You need at least 3 past mistakes to review!");
+            return;
+        }
         const shuffledMistakes = [...pastMistakes].sort(() => 0.5 - Math.random()).slice(0, 10); // Take up to 10
-        setCurrentQuiz(shuffledMistakes);
-        setAnswers(new Array(shuffledMistakes.length).fill(''));
+        setQuiz(shuffledMistakes);
+        setCurrentQ(0);
+        setSelectedAnswer(null);
+        setIsSubmitted(false);
+        setScore(0);
+        setIsFinished(false);
     };
 
-    if (currentQuiz) {
-        // A minimal quiz view can be added here if desired. For simplicity, we just show the start button.
-        // For now, we link to the Practice area. A full implementation would have a quiz UI here.
+    const handleNext = () => {
+        if (!quiz) return;
+        const isCorrect = selectedAnswer === quiz[currentQ].correctAnswer;
+        if (isCorrect) setScore(s => s + 1);
+        
+        setIsSubmitted(false);
+        setSelectedAnswer(null);
+
+        if (currentQ < quiz.length - 1) {
+            setCurrentQ(q => q + 1);
+        } else {
+            setIsFinished(true);
+            const finalScore = isCorrect ? score + 1 : score;
+            const percentage = Math.round((finalScore / quiz.length) * 100);
+            toast.success(`Review complete! Score: ${percentage}%`);
+        }
+    };
+    
+    if (quiz && !isFinished) {
+        const question = quiz[currentQ];
         return (
-             <div className="text-center bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-md">
-                 <h1 className="text-3xl sm:text-4xl font-bold">Mistake Zone</h1>
-                <p className="text-gray-600 dark:text-gray-300 mt-2">Quiz yourself on questions you've previously answered incorrectly to solidify your knowledge.</p>
-                <button onClick={handleGenerateMistakesQuiz} disabled={pastMistakes.length < 3} className="mt-6 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md disabled:bg-gray-400">
-                    Start Mistakes Review ({pastMistakes.length} available)
-                </button>
-                {/* Note: A full quiz UI would be rendered here upon starting */}
+            <div className="w-full max-w-2xl mx-auto bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg animate-fade-in">
+                <h2 className="text-2xl font-bold mb-4">Mistake Review ({currentQ + 1}/{quiz.length})</h2>
+                <h3 className="text-lg font-semibold mb-4">{question.questionText}</h3>
+                <div className="space-y-2 mb-4">
+                    {question.options.map(option => {
+                        const isCorrect = option === question.correctAnswer;
+                        const isSelected = option === selectedAnswer;
+                        let buttonClass = 'bg-gray-100 dark:bg-gray-600 hover:border-blue-400';
+                        if (isSubmitted) {
+                            if (isCorrect) buttonClass = 'bg-green-200 dark:bg-green-800 border-green-500';
+                            else if (isSelected) buttonClass = 'bg-red-200 dark:bg-red-800 border-red-500';
+                        } else if (isSelected) { buttonClass = 'bg-blue-500 border-blue-500 text-white font-bold'; }
+                        return <button key={option} onClick={() => !isSubmitted && setSelectedAnswer(option)} disabled={isSubmitted} className={`w-full text-left p-3 rounded-xl border-2 transition-all ${buttonClass}`}>{option}</button>;
+                    })}
+                </div>
+                {!isSubmitted && <button onClick={() => setIsSubmitted(true)} disabled={!selectedAnswer} className="w-full py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-gray-400">Submit</button>}
+                {isSubmitted && <button onClick={handleNext} className="w-full py-2 bg-green-600 text-white font-semibold rounded-lg">Next</button>}
+            </div>
+        );
+    }
+    
+    if (quiz && isFinished) {
+        return (
+            <div className="text-center bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-md animate-fade-in">
+                <h2 className="text-2xl font-bold mb-4">Review Complete!</h2>
+                <p className="text-4xl font-bold mb-4">{score}/{quiz.length}</p>
+                <button onClick={() => setQuiz(null)} className="w-full max-w-xs mx-auto py-2 bg-green-600 text-white font-semibold rounded-lg">Back to Review Center</button>
             </div>
         );
     }

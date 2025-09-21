@@ -4,6 +4,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppContext } from './AppContext';
 import { saveUserProfile, loadUserProfile } from '../services/localStorageService';
@@ -112,7 +114,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         let profileUpdate = { ...userProfile };
         if (userProfile.doubleXpUntil && new Date(userProfile.doubleXpUntil) <= new Date()) {
             profileUpdate.doubleXpUntil = null;
-            // FIX: The `react-hot-toast` library does not have a `.info` method. Use the base `toast()` for informational messages.
             toast('Your Double XP boost has expired.', { icon: '⏳' });
         }
 
@@ -131,20 +132,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         const newStreak = userProfile.lastDailyCompletion === yesterdayStr ? userProfile.streak + 1 : 1;
         
-        if (addXP) addXP(10, "Daily activity complete");
-
         if (newStreak > userProfile.streak && newStreak > 1) {
             toast.success(`Streak extended to ${newStreak} days!`, { icon: '🔥' });
         }
         
         const updatedProfile = {
             ...userProfile,
-            // XP is handled by addXP
             streak: newStreak,
             lastDailyCompletion: today,
         };
         setUserProfile(updatedProfile);
-    }, [userProfile, addXP]);
+    }, [userProfile]);
 
     const addReport = (report: Report) => {
         if (!userProfile) return;
@@ -220,6 +218,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
         if (xpGained > 0) {
+            if (recordDailyActivity) {
+                recordDailyActivity();
+            }
+
             let finalAmount = xpGained;
             const doubleXpActive = userProfile.doubleXpUntil && new Date(userProfile.doubleXpUntil) > new Date();
 

@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useContext } from 'react';
 import { AppProvider } from './contexts/AppProvider';
 import { AppContext } from './contexts/AppContext';
@@ -66,9 +67,9 @@ const AppContent: React.FC = () => {
             {userProfile ? (
                 <>
                     <Sidebar activeView={activeView} setActiveView={setActiveView} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} openCommandCenter={() => setIsCommandCenterOpen(true)} />
-                    <main className={`flex-1 p-4 md:p-6 flex flex-col ${activeView === View.LEARN ? 'overflow-y-hidden' : 'overflow-y-auto'}`}>
+                    <main className={`flex-1 p-4 md:p-6 flex flex-col overflow-y-auto`}>
                          <button
-                            className="md:hidden p-2 mb-4 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0"
+                            className="md:hidden p-2 mb-4 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0 self-start"
                             onClick={() => setIsSidebarOpen(true)}
                             aria-label="Open sidebar"
                         >

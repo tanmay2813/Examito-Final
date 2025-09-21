@@ -1,6 +1,8 @@
 
 
 
+
+
 import { GoogleGenAI, Type } from "@google/genai";
 import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, StudyBuddyPersona, StudyPlan, LearningStyle } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -20,7 +22,7 @@ const getAi = (): GoogleGenAI => {
 
 const getTutorSystemInstruction = (board: string, persona: StudyBuddyPersona, learningStyle: LearningStyle) => {
     let baseInstruction = `You are Examito, an expert AI tutor for a student studying the ${board} curriculum.
-- **Math Formatting:** When writing mathematical equations or formulas, use LaTeX syntax. For block equations, enclose them in \`$$\`...\`$$\`. For inline equations, use \`$\`...\`$\`.
+- **Math Formatting:** You MUST use LaTeX for all mathematical expressions. For block equations, enclose them in \`$$\`...\`$$\`. For inline math, use \`$\`...\`$\`. For example, a fraction is \`$\\frac{5}{3}$\`. DO NOT use any other format.
 - **Timeline Integration:** You can help users organize their studies. If a user asks to remember something or schedule a study session, respond ONLY with a JSON object inside <TIMELINE_ENTRY> tags. The JSON should have "title", "description", "date" (in YYYY-MM-DD format), and "reminderFrequency" ('daily', 'weekly', 'monthly', or 'none'). For example: <TIMELINE_ENTRY>{"title": "Review Photosynthesis", "description": "Go over the light-dependent and independent reactions.", "date": "2024-08-15", "reminderFrequency": "weekly"}</TIMELINE_ENTRY>. Do not add any text outside of the tag if you use it.
 - **File Analysis:** If provided with text from a file (like a PDF), or an image, use that content as the primary context for your response.
 - **Interactive Quizzing:** To check for understanding, you can occasionally embed a single multiple-choice question mini-quiz in your response. To do this, respond ONLY with a JSON object inside <QUIZ> tags. The JSON should be an array containing one question object with "questionText", "options" (4 of them), and "correctAnswer". Example: <QUIZ>[{"questionText": "What is the powerhouse of the cell?", "options": ["Mitochondria", "Nucleus", "Ribosome", "Chloroplast"], "correctAnswer": "Mitochondria"}]</QUIZ>. Do not add any text outside of the tag if you use it.`;
@@ -132,8 +134,10 @@ export const getAdaptiveResponse = async (
 
     const contents = history.map(msg => {
         const parts: any[] = [];
-        // Ensure text is always present, even if empty, as a part.
-        parts.push({ text: msg.text || '' });
+        
+        if (msg.text) {
+             parts.push({ text: msg.text });
+        }
 
         if (msg.files) {
             msg.files.forEach(file => {
@@ -143,6 +147,11 @@ export const getAdaptiveResponse = async (
             });
         }
         
+        // Ensure parts is not empty
+        if (parts.length === 0) {
+            parts.push({ text: '' });
+        }
+
         return {
             role: msg.sender === 'user' ? 'user' : 'model',
             parts

@@ -1,10 +1,12 @@
 
 
 
+
+
 import React, { useState, useRef, useEffect, useContext } from 'react';
-import { getAdaptiveResponse, generateFlashcards, getSimplifiedResponse, analyzeFileContent } from '../services/geminiService';
+import { getAdaptiveResponse, generateFlashcards, getSimplifiedResponse } from '../services/geminiService';
 import { AppContext } from '../contexts/AppContext';
-import { TimelineEntry, Message, UserTimelineEntry, ConceptTimelineEntry, StudyBuddyPersona, Question, LearningStyle } from '../types';
+import { Message, UserTimelineEntry, ConceptTimelineEntry, StudyBuddyPersona, Question, LearningStyle } from '../types';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -22,7 +24,6 @@ const MessageContent: React.FC<{ text: string }> = ({ text }) => {
     useEffect(() => {
         if (contentRef.current && window.renderMathInElement && window.katex) {
             try {
-                // FIX: The ref is named `contentRef`, not `content`.
                 window.renderMathInElement(contentRef.current, {
                     delimiters: [
                         { left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false },
@@ -74,51 +75,6 @@ const InlineQuiz: React.FC<{ quiz: Question[]; onComplete: () => void }> = ({ qu
     );
 };
 
-const FileAnalysisModal: React.FC<{ file: File; onClose: () => void; onComplete: (analysis: string) => void; }> = ({ file, onClose, onComplete }) => {
-    const [prompt, setPrompt] = useState('Summarize the key points of this file.');
-    const [isLoading, setIsLoading] = useState(false);
-
-    const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
-        const reader = new FileReader(); reader.readAsDataURL(file);
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = error => reject(error);
-    });
-
-    const handleAnalyze = async () => {
-        setIsLoading(true);
-        try {
-            if (file.type.startsWith('image/')) {
-                const base64Data = await toBase64(file);
-                const result = await analyzeFileContent(base64Data, file.type, prompt);
-                onComplete(result);
-            } else {
-                onComplete(`Analysis for non-image files like PDFs is handled by extracting text and including it in the main chat prompt. The AI will analyze it along with your message.`);
-            }
-        } catch (error) {
-            console.error("File analysis error:", error);
-            toast.error("Failed to analyze file.");
-        } finally {
-            setIsLoading(false);
-            onClose();
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-            <div className="w-full max-w-lg bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                <h2 className="text-xl font-bold mb-4">Analyze "{file.name}"</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">What should the AI do with this file?</p>
-                <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
-                <div className="flex justify-end gap-2 mt-4">
-                    <button onClick={onClose} className="px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg">Cancel</button>
-                    <button onClick={handleAnalyze} disabled={isLoading} className="px-4 py-2 bg-green-600 text-white rounded-lg disabled:bg-gray-400">{isLoading ? 'Analyzing...' : 'Analyze'}</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
 const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader(); reader.readAsDataURL(file);
     reader.onload = () => resolve((reader.result as string).split(',')[1]);
@@ -131,12 +87,12 @@ const extractPdfText = async (file: File): Promise<string> => {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     let fullText = '';
     const numPagesToProcess = Math.min(5, pdf.numPages);
-    if(pdf.numPages > 5) toast.loading(`Analyzing first 5 of ${pdf.numPages} pages...`);
+    const toastId = toast.loading(`Analyzing first ${numPagesToProcess} of ${pdf.numPages} pages...`);
     for (let i = 1; i <= numPagesToProcess; i++) {
         const page = await pdf.getPage(i); const textContent = await page.getTextContent();
         fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n\n';
     }
-    toast.dismiss(); return fullText;
+    toast.dismiss(toastId); return fullText;
 };
 
 const AdaptiveTutor: React.FC = () => {
@@ -145,7 +101,6 @@ const AdaptiveTutor: React.FC = () => {
     const [input, setInput] = useState('');
     const [files, setFiles] = useState<File[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [fileToAnalyze, setFileToAnalyze] = useState<File | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -159,10 +114,19 @@ const AdaptiveTutor: React.FC = () => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = e.target.files;
         if (selectedFiles) {
-            const newFile = selectedFiles[0];
+            const newFiles = Array.from(selectedFiles);
             const supportedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-            if (supportedTypes.includes(newFile.type)) setFileToAnalyze(newFile);
-            else toast.error(`Unsupported file type: ${newFile.name}`);
+            
+            const validFiles = newFiles.filter(file => {
+                if (supportedTypes.includes(file.type)) {
+                    return true;
+                }
+                toast.error(`Unsupported file type: ${file.name}`);
+                return false;
+            });
+            
+            setFiles(prevFiles => [...prevFiles, ...validFiles]);
+
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
@@ -224,16 +188,6 @@ const AdaptiveTutor: React.FC = () => {
         } finally { setIsLoading(false); }
     };
 
-    const handleAnalysisComplete = (analysisText: string) => {
-        if (!setTutorHistory) return;
-        const analysisMessage: Message = {
-            id: uuidv4(), text: `Here is the analysis of "${fileToAnalyze?.name}":`,
-            sender: 'model', analysisResult: analysisText
-        };
-        setTutorHistory([...messages, analysisMessage]);
-        setFileToAnalyze(null);
-    };
-    
     // Message action handlers (timeline, flashcards, etc.)
     const handleAddToTimeline = (message: Message) => {
         if (!addTimelineEntry) return;
@@ -277,7 +231,6 @@ const AdaptiveTutor: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
-            {fileToAnalyze && <FileAnalysisModal file={fileToAnalyze} onClose={() => setFileToAnalyze(null)} onComplete={handleAnalysisComplete} />}
             <header className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap justify-between items-center gap-4 flex-shrink-0">
                 <h1 className="text-2xl font-bold">AI Tutor</h1>
                 <div className="flex items-center gap-4">
@@ -294,7 +247,18 @@ const AdaptiveTutor: React.FC = () => {
                 {messages.map((msg) => (
                     <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-xl p-4 rounded-xl relative group ${msg.sender === 'user' ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                            {msg.files?.map((file, index) => (<div key={index} className="mb-2">{file.base64Data ? <img src={`data:${file.type};base64,${file.base64Data}`} alt={file.name} className="rounded-lg max-h-48" /> : <div className="p-2 bg-gray-100 dark:bg-gray-600 rounded-lg text-sm">📄 <span className="font-semibold">{file.name}</span></div>}</div>))}
+                            {msg.files && msg.files.length > 0 && (
+                                <div className="mb-2 grid grid-cols-2 gap-2">
+                                    {msg.files.map((file, index) => (
+                                        <div key={index}>
+                                            {file.base64Data ? 
+                                                <img src={`data:${file.type};base64,${file.base64Data}`} alt={file.name} className="rounded-lg max-h-48" /> : 
+                                                <div className="p-2 bg-gray-100 dark:bg-gray-600 rounded-lg text-sm">📄 <span className="font-semibold">{file.name}</span></div>
+                                            }
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                             {msg.analysisResult ? <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-md whitespace-pre-wrap"><p className="text-sm font-medium text-indigo-800 dark:text-indigo-200">Analysis Result:</p><p className="text-sm">{msg.analysisResult}</p></div> : null}
                             {msg.quiz ? <InlineQuiz quiz={msg.quiz} onComplete={() => handleQuizComplete(msg.id)} /> : <MessageContent text={msg.text} />}
                             {msg.sender === 'model' && !msg.quiz && !msg.analysisResult && (
@@ -311,11 +275,18 @@ const AdaptiveTutor: React.FC = () => {
                 <div ref={messagesEndRef} />
             </div>
             <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-                <div className="space-y-2 mb-2">
-                    {files.map((file, index) => (<div key={index} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 p-2 rounded-md"><span className="text-sm truncate">📄 {file.name}</span><button onClick={() => setFiles(f => f.filter((_, i) => i !== index))} className="text-red-500 text-xl font-bold">&times;</button></div>))}
-                </div>
+                {files.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                        {files.map((file, index) => (
+                            <div key={index} className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 p-2 rounded-full text-sm">
+                                <span className="truncate max-w-xs pl-2">📄 {file.name}</span>
+                                <button onClick={() => setFiles(f => f.filter((_, i) => i !== index))} className="text-red-500 font-bold ml-2 mr-1">&times;</button>
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <div className="flex items-center">
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/jpeg,image/png,application/pdf" />
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/jpeg,image/png,application/pdf" multiple />
                     <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-2" title="Attach & Analyze File"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
                     <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask the AI Tutor anything..." className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500" disabled={isLoading}/>
                     <button onClick={handleSend} disabled={isLoading || (input.trim() === '' && files.length === 0)} className="ml-4 px-6 py-2 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 disabled:bg-gray-400">Send</button>

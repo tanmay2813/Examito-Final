@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useContext, useState, useEffect, useMemo } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { AppContext } from '../contexts/AppContext';
@@ -202,11 +204,11 @@ const StatsWidget: React.FC = () => {
             <h2 className="text-xl font-bold mb-4">Your Stats</h2>
             <div className="flex justify-around text-center">
                 <div>
-                    <p className="text-4xl font-bold text-green-500">{userProfile?.streak || 0}<span className="text-2xl">🔥</span></p>
+                    <p className="text-3xl sm:text-4xl font-bold text-green-500">{userProfile?.streak || 0}<span className="text-2xl">🔥</span></p>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Day Streak</p>
                 </div>
                 <div>
-                    <p className="text-4xl font-bold text-blue-500">{userProfile?.streakFreezes || 0}<span className="text-2xl">🧊</span></p>
+                    <p className="text-3xl sm:text-4xl font-bold text-blue-500">{userProfile?.streakFreezes || 0}<span className="text-2xl">🧊</span></p>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Streak Savers</p>
                 </div>
             </div>
@@ -284,15 +286,15 @@ const Dashboard: React.FC<{ setActiveView: Dispatch<SetStateAction<View>> }> = (
                 <p className="mt-2 text-lg">What will you master today?</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  {/* Main Column */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="md:col-span-2 space-y-6">
                     <DailyGoalsWidget />
                     <RecentAchievementsWidget setActiveView={setActiveView} />
                 </div>
                 
                  {/* Side Column */}
-                <div className="space-y-6">
+                <div className="space-y-6 md:col-span-1">
                     <StatsWidget />
                     <DailyInsightWidget />
                     <QuickActionsWidget setActiveView={setActiveView} openDaily5={() => setShowDaily5(true)} />

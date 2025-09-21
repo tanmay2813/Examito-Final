@@ -1,6 +1,8 @@
 
 
 
+
+
 import { UserProfile, Flashcard } from '../types';
 
 const USER_PROFILE_KEY = 'examitoUserProfile';
@@ -11,7 +13,10 @@ export const saveUserProfile = (profile: UserProfile | null): void => {
             // Create a deep copy to avoid mutating the React state object.
             const profileToSave: UserProfile = JSON.parse(JSON.stringify(profile));
             
-            // Remove base64 image data from tutor history before saving to prevent exceeding localStorage quota.
+            // NOTE: The removal of base64 data has been disabled to allow for conversational memory
+            // about images. This may increase local storage usage. A more robust solution for
+            // very large files or long histories might involve session storage or indexedDB.
+            /*
             if (profileToSave.tutorHistory) {
                 profileToSave.tutorHistory.forEach(message => {
                     if (message.files) {
@@ -22,6 +27,7 @@ export const saveUserProfile = (profile: UserProfile | null): void => {
                     }
                 });
             }
+            */
 
             const profileJson = JSON.stringify(profileToSave);
             localStorage.setItem(USER_PROFILE_KEY, profileJson);

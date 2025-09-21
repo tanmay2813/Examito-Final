@@ -1,16 +1,15 @@
 
 
+
+
 import React, { useState, useContext } from 'react';
 import ProgressReports from './ProgressReports';
 import Achievements from './Achievements';
-// FIX: Removed conflicting imports as these components are now defined locally.
-// import Timeline from './Timeline';
-// import StudyPlanner from './StudyPlanner'; 
 import { AppContext } from '../contexts/AppContext';
 import toast from 'react-hot-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { generateStudyPlan } from '../services/geminiService';
-import type { StudyPlan, UserTimelineEntry } from '../types';
+import type { StudyPlan, UserTimelineEntry, TimelineEntry } from '../types';
 
 const TrackContainer: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'reports' | 'achievements' | 'timeline'>('reports');
@@ -23,7 +22,6 @@ const TrackContainer: React.FC = () => {
             case 'achievements':
                 return <Achievements />;
             case 'timeline':
-                // Pass a function to the Timeline component to open the planner modal
                 return <Timeline openPlanner={() => setShowPlannerModal(true)} />;
             default:
                 return null;
@@ -43,7 +41,6 @@ const TrackContainer: React.FC = () => {
                 {renderContent()}
             </div>
             
-            {/* The Study Planner now opens in a modal from the Timeline tab */}
             {showPlannerModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 animate-fade-in p-4">
                     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
@@ -61,13 +58,9 @@ const TrackContainer: React.FC = () => {
     );
 };
 
-// We need to redefine a minimal StudyPlanner here, as the original component was a full page.
-// This new version is designed to live inside the modal.
 const StudyPlanner: React.FC<{ onPlanCreated: () => void }> = ({ onPlanCreated }) => {
-    // FIX: useContext and AppContext were not available. Added imports.
     const { userProfile, addStudyPlan } = useContext(AppContext);
     
-    // Planner State
     const [step, setStep] = useState('examName');
     const [examName, setExamName] = useState('');
     const [examDate, setExamDate] = useState('');
@@ -76,9 +69,7 @@ const StudyPlanner: React.FC<{ onPlanCreated: () => void }> = ({ onPlanCreated }
     const [currentTopic, setCurrentTopic] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    // This component logic is taken from the old StudyPlanner.tsx
     const handleNextStep = (currentStep: string) => {
-        // FIX: toast was not defined. Added import.
         switch(currentStep) {
             case 'examName': if (examName.trim()) setStep('examDate'); else toast.error("Please enter an exam name."); break;
             case 'examDate': if (examDate) setStep('startDate'); else toast.error("Please select an exam date."); break;
@@ -93,16 +84,14 @@ const StudyPlanner: React.FC<{ onPlanCreated: () => void }> = ({ onPlanCreated }
         if (!examName || !examDate || topics.length === 0 || !userProfile || !addStudyPlan) return;
         setIsLoading(true);
         try {
-            // FIX: Removed dynamic imports for geminiService and uuid in favor of top-level imports.
             const planData = await generateStudyPlan(examName, examDate, topics, userProfile.board, startDate);
             addStudyPlan({ id: uuidv4(), examName, examDate, topics, plan: planData.plan, dateGenerated: new Date().toISOString() });
             toast.success("New study plan generated and saved!");
-            onPlanCreated(); // Close modal on success
+            onPlanCreated();
         } catch (error) { toast.error("Failed to generate plan."); } 
         finally { setIsLoading(false); }
     };
     
-    // The UI for planner steps
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-center mb-4">Let's Create Your Study Plan</h2>
@@ -115,27 +104,37 @@ const StudyPlanner: React.FC<{ onPlanCreated: () => void }> = ({ onPlanCreated }
     );
 };
 
-// Modify Timeline to accept openPlanner prop
 const Timeline: React.FC<{openPlanner: () => void}> = ({openPlanner}) => {
-    // This component now contains the logic from the original Timeline.tsx
-    // FIX: useContext and AppContext were not available. Added imports.
     const { userProfile, addTimelineEntry, setUserProfile } = useContext(AppContext);
-    // ... (rest of the original Timeline logic: showForm, title, handleSubmit, handleDelete etc.)
-    const { useState } = React;
     const [showForm, setShowForm] = useState(false);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    // FIX: Removed require('uuid') as it's not standard ESM and can cause issues. Replaced with top-level import.
+    const [reminderFrequency, setReminderFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'none'>('none');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // FIX: Add null check for context function
-        if (!addTimelineEntry) return;
-        // FIX: Provide a type for the new entry
-        const newEntry: UserTimelineEntry = { id: uuidv4(), type: 'user', title, description, date };
+        if (!title || !date || !addTimelineEntry) {
+            toast.error("Title and date are required.");
+            return;
+        }
+        const newEntry: UserTimelineEntry = {
+            id: uuidv4(), type: 'user', title, description, date, reminderFrequency,
+        };
         addTimelineEntry(newEntry);
-        setShowForm(false); setTitle(''); setDescription(''); setDate(new Date().toISOString().split('T')[0]);
+        setShowForm(false); setTitle(''); setDescription(''); setDate(new Date().toISOString().split('T')[0]); setReminderFrequency('none');
+    };
+    
+    const getEntryId = (entry: TimelineEntry): string => {
+        if (entry.type === 'test') return entry.details.testId;
+        return entry.id;
+    }
+    
+    const handleDelete = (id: string) => {
+        if (!userProfile || !setUserProfile || !window.confirm("Delete this timeline entry?")) return;
+        const updatedTimeline = userProfile.timeline.filter(e => getEntryId(e) !== id);
+        setUserProfile({ ...userProfile, timeline: updatedTimeline });
+        toast.success("Entry deleted.");
     };
     
     return (
@@ -145,29 +144,57 @@ const Timeline: React.FC<{openPlanner: () => void}> = ({openPlanner}) => {
                     <h1 className="text-3xl sm:text-4xl font-bold">Learning Timeline & Plans</h1>
                     <p className="text-gray-600 dark:text-gray-300 mt-1">Your schedule, key concepts, and AI-generated study plans.</p>
                 </div>
-                 <button onClick={openPlanner} className="px-5 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 w-full sm:w-auto flex-shrink-0">
-                    Create New AI Study Plan
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                     <button onClick={() => setShowForm(!showForm)} className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 w-full sm:w-auto flex-shrink-0">
+                        {showForm ? 'Cancel Entry' : 'Add Manual Entry'}
+                    </button>
+                    <button onClick={openPlanner} className="px-5 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 w-full sm:w-auto flex-shrink-0">
+                        Create AI Study Plan
+                    </button>
+                </div>
             </div>
 
-            {/* Existing Timeline logic for displaying entries would go here */}
             {userProfile?.studyPlans && userProfile.studyPlans.length > 0 && (
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                     <h2 className="text-2xl font-bold mb-4">Your Study Plans</h2>
-                    {/* A simple list of plans can be shown here */}
+                    <div className="space-y-3">
+                        {userProfile.studyPlans.slice(0, 2).map(plan => (
+                            <div key={plan.id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                                <p className="font-bold text-green-600 dark:text-green-400">{plan.examName}</p>
+                                <p className="text-sm">Exam Date: {new Date(plan.examDate).toLocaleDateString()}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
+            
+            {showForm && (
+                <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-4 animate-fade-in">
+                    <input type="text" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" required />
+                    <textarea placeholder="Description (optional)" value={description} onChange={e => setDescription(e.target.value)} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" />
+                    <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" required />
+                    <select value={reminderFrequency} onChange={e => setReminderFrequency(e.target.value as any)} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600">
+                        <option value="none">No Reminders</option> <option value="daily">Daily</option> <option value="weekly">Weekly</option> <option value="monthly">Monthly</option>
+                    </select>
+                    <button type="submit" className="w-full py-2 bg-blue-500 text-white rounded-lg">Add to Timeline</button>
+                </form>
+            )}
+
              <div className="space-y-4">
                 {userProfile && userProfile.timeline.length > 0 ? (
                     userProfile.timeline.map(entry => (
-                        <div key={entry.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md">
-                            <p className="text-lg font-bold">{entry.title}</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(entry.date).toDateString()}</p>
+                        <div key={getEntryId(entry)} className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md flex items-start justify-between">
+                            <div>
+                                <p className="text-lg font-bold">{entry.title}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{new Date(entry.date).toDateString()}</p>
+                                {entry.description && <p className="mt-2 text-gray-700 dark:text-gray-300">{entry.description}</p>}
+                            </div>
+                             <button onClick={() => handleDelete(getEntryId(entry))} className="text-red-500 hover:text-red-700 font-bold p-2"> &times; </button>
                         </div>
                     ))
                 ) : (
                     <div className="text-center bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-md">
-                        <p>Your timeline is empty.</p>
+                        <p>Your timeline is empty. Add a study task or save a concept to get started!</p>
                     </div>
                 )}
             </div>
