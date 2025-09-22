@@ -3,8 +3,9 @@
 
 
 
+
 import { GoogleGenAI, Type } from "@google/genai";
-import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, StudyBuddyPersona, StudyPlan, LearningStyle } from '../types';
+import type { UserProfile, Question, Message, Report, DailyGoal, Flashcard, StudyBuddyPersona, LearningStyle, StudyPlan } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -90,32 +91,6 @@ const dailyGoalsSchema = {
             xp: { type: Type.NUMBER, description: "XP reward for completing the goal, between 10 and 50." }
         },
         required: ['description', 'xp']
-    }
-};
-
-const studyPlanSchema = {
-    type: Type.ARRAY,
-    description: "A list of weekly plans.",
-    items: {
-        type: Type.OBJECT,
-        properties: {
-            week: { type: Type.NUMBER, description: "The week number of the study plan." },
-            dailyTasks: {
-                type: Type.ARRAY,
-                description: "A list of tasks for each day of the week.",
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        day: { type: Type.STRING, description: "The day of the week (e.g., Monday)." },
-                        task: { type: Type.STRING, description: "The specific study task for that day." },
-                        activity: { type: Type.STRING, description: "An optional suggested activity from this list: ['tutor', 'test', 'flashcards', 'read'] to help with the task.", optional: true },
-                        topic: { type: Type.STRING, description: "If an activity is suggested, this is the specific topic for that activity.", optional: true }
-                    },
-                    required: ["day", "task"]
-                }
-            }
-        },
-        required: ["week", "dailyTasks"]
     }
 };
 
@@ -329,29 +304,47 @@ export const generateDashboardInsight = async (userProfile: UserProfile): Promis
 
 export const generateStudyPlan = async (examName: string, examDate: string, topics: string[], board: string, startDate: string): Promise<{ plan: StudyPlan['plan'] }> => {
     const ai = getAi();
-    const prompt = `Create a structured study plan for a student studying the ${board} curriculum.
-- Exam Name: ${examName}
-- Exam Date: ${examDate}
-- Plan Start Date: ${startDate}
-- Topics to Cover: ${topics.join(', ')}
+    const prompt = `Create a detailed, week-by-week study plan for a student studying for the "${examName}" on ${examDate}. The student is following the ${board} curriculum. They want to start studying on ${startDate}. The topics to cover are: ${topics.join(', ')}. Break down the topics into manageable daily tasks from Monday to Sunday for each week. For some tasks, suggest a relevant activity like 'test', 'review', or 'learn' and the corresponding topic.`;
 
-Break the plan into weeks. For each day of the week, provide a specific, actionable task. For some tasks, suggest a relevant in-app activity ('tutor', 'test', 'flashcards') and the corresponding 'topic' for that activity. This will help the user take direct action.`;
+    const studyPlanSchema = {
+        type: Type.OBJECT,
+        properties: {
+            plan: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        week: { type: Type.NUMBER },
+                        dailyTasks: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    day: { type: Type.STRING },
+                                    task: { type: Type.STRING },
+                                    activity: { type: Type.STRING, description: "Suggest 'test', 'review', or 'learn' for this task." },
+                                    topic: { type: Type.STRING, description: "The specific topic for the activity." }
+                                },
+                                required: ['day', 'task']
+                            }
+                        }
+                    },
+                    required: ['week', 'dailyTasks']
+                }
+            }
+        },
+        required: ['plan']
+    };
     
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
             responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    plan: studyPlanSchema,
-                },
-                required: ["plan"]
-            }
+            responseSchema: studyPlanSchema
         }
     });
-    
+
     const jsonText = response.text.trim();
     return JSON.parse(jsonText);
 };

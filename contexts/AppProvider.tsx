@@ -6,6 +6,9 @@
 
 
 
+
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { AppContext } from './AppContext';
 import { saveUserProfile, loadUserProfile } from '../services/localStorageService';
@@ -150,6 +153,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUserProfile(updatedProfile);
     };
 
+    const addStudyPlan = (plan: StudyPlan) => {
+        if (!userProfile) return;
+        const updatedProfile = { ...userProfile, studyPlans: [plan, ...userProfile.studyPlans] };
+        setUserProfile(updatedProfile);
+    };
+
     const addTimelineEntry = (entry: TimelineEntry) => {
         if (!userProfile) return;
         const updatedProfile = {
@@ -176,6 +185,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             easeFactor: 2.5,
         };
         const updatedProfile = { ...userProfile, flashcards: [newFlashcard, ...userProfile.flashcards] };
+        setUserProfile(updatedProfile);
+    };
+
+    const addFlashcards = (flashcards: Omit<Flashcard, 'id' | 'dueDate' | 'interval' | 'easeFactor'>[]) => {
+        if (!userProfile) return;
+        const newFlashcards: Flashcard[] = flashcards.map(card => ({
+            ...card,
+            id: uuidv4(),
+            dueDate: new Date().toISOString(),
+            interval: 1,
+            easeFactor: 2.5,
+        }));
+        const updatedProfile = { ...userProfile, flashcards: [...newFlashcards, ...userProfile.flashcards] };
         setUserProfile(updatedProfile);
     };
 
@@ -240,26 +262,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     };
 
-    const addStudyPlan = (plan: StudyPlan) => {
-        if (!userProfile) return;
-        const updatedProfile = { ...userProfile, studyPlans: [plan, ...userProfile.studyPlans] };
-        setUserProfile(updatedProfile);
-    };
-
     return (
         <AppContext.Provider value={{ 
             userProfile, 
             setUserProfile, 
             loading,
             addReport,
+            addStudyPlan,
             addTimelineEntry,
             setTutorHistory,
             addFlashcard,
+            addFlashcards,
             updateMastery,
             setDailyGoals,
             completeDailyGoal,
             recordDailyActivity,
-            addStudyPlan,
             updateFlashcard,
             addXP
         }}>

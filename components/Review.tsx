@@ -1,6 +1,9 @@
 
 
 
+
+
+
 import React, { useState, useContext, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateSmartReviewSelection } from '../services/geminiService';
@@ -14,10 +17,10 @@ const Flashcard: React.FC<{ card: FlashcardType; onDelete: () => void }> = ({ ca
     return (
         <div className="relative group h-64 w-full perspective-1000">
             <div className={`w-full h-full transform-style-3d transition-transform duration-700 ${isFlipped ? 'rotate-y-180' : ''}`} onClick={() => setIsFlipped(!isFlipped)}>
-                <div className="absolute w-full h-full backface-hidden bg-white dark:bg-gray-700 rounded-2xl shadow-lg flex items-center justify-center p-6 cursor-pointer">
+                <div className="absolute w-full h-full backface-hidden bg-white dark:bg-gray-700 rounded-2xl shadow-lg flex items-center justify-center p-6 cursor-pointer overflow-y-auto">
                     <p className="text-xl font-semibold text-center">{card.front}</p>
                 </div>
-                <div className="absolute w-full h-full backface-hidden bg-green-400 dark:bg-green-600 rounded-2xl shadow-lg flex items-center justify-center p-6 cursor-pointer rotate-y-180">
+                <div className="absolute w-full h-full backface-hidden bg-green-400 dark:bg-green-600 rounded-2xl shadow-lg flex items-center justify-center p-6 cursor-pointer rotate-y-180 overflow-y-auto">
                     <p className="text-lg text-white text-center">{card.back}</p>
                 </div>
             </div>
@@ -102,7 +105,8 @@ const FlashcardsView: React.FC = () => {
         setIsLoadingSmartReview(true); const toastId = toast.loading("🤖 AI is analyzing progress...");
         try {
             const subjects = [...new Set(userProfile.flashcards.map(c => c.subject))];
-            const recommendedSubjects = await generateSmartReviewSelection(userProfile, subjects);
+            // FIX: Explicitly type the result from the async call to resolve type inference issue.
+            const recommendedSubjects: string[] = await generateSmartReviewSelection(userProfile, subjects);
             if (recommendedSubjects.length === 0) { toast.success("No major weak spots found! Try a regular review.", { id: toastId }); return; }
             const cardsForReview = userProfile.flashcards.filter(card => recommendedSubjects.includes(card.subject)).sort(() => Math.random() - 0.5);
             setSmartReviewCards(cardsForReview.slice(0, 15)); setIsSmartStudying(true);

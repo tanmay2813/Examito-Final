@@ -1,6 +1,9 @@
 
 
 
+
+
+
 import React, { useContext, useState, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateSmartReviewSelection } from '../services/geminiService';
@@ -148,7 +151,8 @@ const Flashcards: React.FC = () => {
         const toastId = toast.loading("🤖 AI is analyzing your progress...");
         try {
             const subjects = [...new Set(userProfile.flashcards.map(c => c.subject))];
-            const recommendedSubjects = await generateSmartReviewSelection(userProfile, subjects);
+            // FIX: Explicitly type the result from the async call to resolve type inference issue.
+            const recommendedSubjects: string[] = await generateSmartReviewSelection(userProfile, subjects);
 
             if (recommendedSubjects.length === 0) {
                 toast.success("Great job, no major weak spots found! Try a regular review.", { id: toastId });

@@ -1,6 +1,8 @@
 
 
 
+
+
 export enum View {
     HOME = 'HOME',
     LEARN = 'LEARN',
@@ -39,25 +41,6 @@ export interface Achievement {
 export type StudyBuddyPersona = 'tutor' | 'encourager' | 'challenger';
 export type LearningStyle = 'visual' | 'aural' | 'read/write' | 'kinesthetic' | 'none';
 
-export interface StudyPlanTask {
-    day: string;
-    task: string;
-    activity?: 'tutor' | 'test' | 'flashcards' | 'read';
-    topic?: string;
-}
-
-export interface StudyPlan {
-    id: string;
-    examName: string;
-    examDate: string;
-    topics: string[];
-    plan: {
-        week: number;
-        dailyTasks: StudyPlanTask[];
-    }[];
-    dateGenerated: string;
-}
-
 export interface UserProfile {
     name: string;
     board: string;
@@ -72,6 +55,7 @@ export interface UserProfile {
     achievements: Achievement[];
     mastery: { [topic: string]: number }; // Topic -> mastery score (0-100)
     streakFreezes: number;
+    studyPlans: StudyPlan[];
     dailyGoals: {
         date: string; // YYYY-MM-DD
         goals: DailyGoal[];
@@ -83,7 +67,6 @@ export interface UserProfile {
         date: string; // YYYY-MM-DD
         teaser: string;
     } | null;
-    studyPlans: StudyPlan[];
     dashboardInsight: {
         date: string; // YYYY-MM-DD
         insight: string;
@@ -122,6 +105,25 @@ export interface Report {
     improvements: string[];
     stepByStepPlan: string[];
 }
+
+// FIX: Define and export the missing StudyPlan type.
+export interface StudyPlan {
+    id: string;
+    examName: string;
+    examDate: string;
+    topics: string[];
+    plan: {
+        week: number;
+        dailyTasks: {
+            day: string;
+            task: string;
+            activity?: 'test' | 'review' | 'learn';
+            topic?: string;
+        }[];
+    }[];
+    dateGenerated: string; // ISO 8601
+}
+
 
 export interface Message {
     id: string;

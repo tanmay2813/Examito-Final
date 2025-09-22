@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateStudyPlan } from '../services/geminiService';

@@ -3,6 +3,7 @@
 
 
 
+
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { getAdaptiveResponse, generateFlashcards, getSimplifiedResponse } from '../services/geminiService';
 import { AppContext } from '../contexts/AppContext';
@@ -96,7 +97,7 @@ const extractPdfText = async (file: File): Promise<string> => {
 };
 
 const AdaptiveTutor: React.FC = () => {
-    const { userProfile, setUserProfile, setTutorHistory, addTimelineEntry, addFlashcard, recordDailyActivity } = useContext(AppContext);
+    const { userProfile, setUserProfile, setTutorHistory, addTimelineEntry, addFlashcards, recordDailyActivity } = useContext(AppContext);
     const messages = userProfile?.tutorHistory || [];
     const [input, setInput] = useState('');
     const [files, setFiles] = useState<File[]>([]);
@@ -117,7 +118,8 @@ const AdaptiveTutor: React.FC = () => {
             const newFiles = Array.from(selectedFiles);
             const supportedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
             
-            const validFiles = newFiles.filter(file => {
+            // FIX: Explicitly type the 'file' parameter to resolve type inference issue.
+            const validFiles = newFiles.filter((file: File) => {
                 if (supportedTypes.includes(file.type)) {
                     return true;
                 }
@@ -196,11 +198,11 @@ const AdaptiveTutor: React.FC = () => {
         addTimelineEntry(newEntry); toast.success('Concept saved to timeline!');
     };
     const handleCreateFlashcards = async (message: Message) => {
-        if (!addFlashcard) return;
+        if (!addFlashcards) return;
         const toastId = toast.loading('Creating flashcards...');
         try {
             const flashcards = await generateFlashcards(message.text);
-            flashcards.forEach(card => addFlashcard(card));
+            addFlashcards(flashcards);
             toast.success(`${flashcards.length} flashcard(s) created!`, { id: toastId });
         } catch (error) { toast.error('Could not create flashcards.', { id: toastId }); }
     };
@@ -285,11 +287,11 @@ const AdaptiveTutor: React.FC = () => {
                         ))}
                     </div>
                 )}
-                <div className="flex items-center">
+                <div className="flex items-center space-x-2">
                     <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/jpeg,image/png,application/pdf" multiple />
-                    <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 mr-2" title="Attach & Analyze File"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+                    <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" title="Attach & Analyze File"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
                     <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask the AI Tutor anything..." className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500" disabled={isLoading}/>
-                    <button onClick={handleSend} disabled={isLoading || (input.trim() === '' && files.length === 0)} className="ml-4 px-6 py-2 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 disabled:bg-gray-400">Send</button>
+                    <button onClick={handleSend} disabled={isLoading || (input.trim() === '' && files.length === 0)} className="px-5 py-2 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 disabled:bg-gray-400 flex-shrink-0">Send</button>
                 </div>
             </div>
         </div>

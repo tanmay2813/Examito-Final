@@ -16,7 +16,7 @@ const Login: React.FC = () => {
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
+        <div className="w-full flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
             <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-center text-green-600 dark:text-green-400">Welcome to Examito</h1>
                 <p className="text-center text-gray-600 dark:text-gray-300">Let's get your personalized learning journey started.</p>

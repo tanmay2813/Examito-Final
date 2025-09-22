@@ -3,6 +3,7 @@
 
 
 
+
 import { UserProfile, Flashcard } from '../types';
 
 const USER_PROFILE_KEY = 'examitoUserProfile';
@@ -55,11 +56,11 @@ export const loadUserProfile = (): UserProfile | null => {
             profile.mastery = profile.mastery || {};
             profile.streakFreezes = profile.streakFreezes || 0;
             profile.dailyGoals = profile.dailyGoals || null;
+            profile.studyPlans = profile.studyPlans || [];
             profile.studyBuddyPersona = profile.studyBuddyPersona || 'tutor';
             profile.learningStyle = profile.learningStyle || 'none';
             profile.conceptStreaks = profile.conceptStreaks || {};
             profile.dailyTeaser = profile.dailyTeaser || null;
-            profile.studyPlans = profile.studyPlans || [];
             profile.dashboardInsight = profile.dashboardInsight || null;
             profile.doubleXpUntil = profile.doubleXpUntil || null;
             profile.customQuizTickets = profile.customQuizTickets || 0;
@@ -87,12 +88,12 @@ export const getInitialUserProfile = (name: string, board: string): UserProfile 
         achievements: [],
         mastery: {},
         streakFreezes: 1,
+        studyPlans: [],
         dailyGoals: null,
         studyBuddyPersona: 'tutor',
         learningStyle: 'none',
         conceptStreaks: {},
         dailyTeaser: null,
-        studyPlans: [],
         dashboardInsight: null,
         doubleXpUntil: null,
         customQuizTickets: 0,

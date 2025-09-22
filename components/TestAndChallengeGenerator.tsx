@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { AppContext } from '../contexts/AppContext';
 import { generateTestQuestions, getMistakeExplanation } from '../services/geminiService';
@@ -45,8 +47,9 @@ const TestAndChallengeGenerator: React.FC = () => {
         let testTopic = topic;
         let title = `Test on ${topic}`;
         if (smart) {
+            // FIX: Add explicit types for sort parameters to resolve TS inference error.
             const weakTopics = Object.entries(userProfile.mastery)
-                .filter(([, score]) => score < 80).sort(([, a], [, b]) => a - b).map(([topic]) => topic);
+                .filter(([, score]) => score < 80).sort(([, a]: [string, number], [, b]: [string, number]) => a - b).map(([topic]) => topic);
             if (weakTopics.length === 0) { toast.success("No weak topics found! Try a regular test."); return; }
             testTopic = weakTopics.slice(0, 3).join(', ');
             title = "Personalized Test";
