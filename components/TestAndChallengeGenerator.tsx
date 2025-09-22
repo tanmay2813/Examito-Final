@@ -47,9 +47,9 @@ const TestAndChallengeGenerator: React.FC = () => {
         let testTopic = topic;
         let title = `Test on ${topic}`;
         if (smart) {
-            // FIX: Add explicit types for sort parameters to resolve TS inference error.
+            // FIX: Add explicit types for filter parameters to resolve TS inference error. The error "Operator '<' cannot be applied to types 'unknown' and 'number'" occurs because TypeScript cannot infer the type of 'score' from Object.entries. Explicitly typing the parameter resolves this and allows subsequent type inference to work correctly for the rest of the chain.
             const weakTopics = Object.entries(userProfile.mastery)
-                .filter(([, score]) => score < 80).sort(([, a]: [string, number], [, b]: [string, number]) => a - b).map(([topic]) => topic);
+                .filter(([_topic, score]: [string, number]) => score < 80).sort(([, a], [, b]) => a - b).map(([topic]) => topic);
             if (weakTopics.length === 0) { toast.success("No weak topics found! Try a regular test."); return; }
             testTopic = weakTopics.slice(0, 3).join(', ');
             title = "Personalized Test";

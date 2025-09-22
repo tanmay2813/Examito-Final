@@ -230,6 +230,14 @@ const AdaptiveTutor: React.FC = () => {
     const handleLearningStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         if (userProfile && setUserProfile) setUserProfile({ ...userProfile, learningStyle: e.target.value as LearningStyle });
     };
+     const handleCopy = (textToCopy: string) => {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            toast.success('Copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            toast.error('Could not copy text.');
+        });
+    };
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
@@ -265,6 +273,7 @@ const AdaptiveTutor: React.FC = () => {
                             {msg.quiz ? <InlineQuiz quiz={msg.quiz} onComplete={() => handleQuizComplete(msg.id)} /> : <MessageContent text={msg.text} />}
                             {msg.sender === 'model' && !msg.quiz && !msg.analysisResult && (
                                 <div className="absolute -bottom-4 right-0 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleCopy(msg.text)} title="Copy text" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">📋</button>
                                     <button onClick={() => handleExplainSimply(msg)} title="Explain Simply" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">✨</button>
                                     <button onClick={() => handleAddToTimeline(msg)} title="Add to Timeline" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">🗓️</button>
                                     <button onClick={() => handleCreateFlashcards(msg)} title="Create Flashcard" className="bg-white dark:bg-gray-600 p-1.5 rounded-full shadow-md text-sm">🃏</button>
@@ -287,11 +296,31 @@ const AdaptiveTutor: React.FC = () => {
                         ))}
                     </div>
                 )}
-                <div className="flex items-center space-x-2">
+                <div className="flex items-end space-x-2">
                     <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/jpeg,image/png,application/pdf" multiple />
-                    <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" title="Attach & Analyze File"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
-                    <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask the AI Tutor anything..." className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500" disabled={isLoading}/>
-                    <button onClick={handleSend} disabled={isLoading || (input.trim() === '' && files.length === 0)} className="px-5 py-2 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 disabled:bg-gray-400 flex-shrink-0">Send</button>
+                    <button onClick={() => fileInputRef.current?.click()} className="p-3 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 flex-shrink-0" title="Attach & Analyze File"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+                    <textarea 
+                        value={input} 
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder="Ask the AI Tutor anything..." 
+                        className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" 
+                        rows={1}
+                        style={{ maxHeight: '150px' }}
+                        onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'inherit';
+                            target.style.height = `${Math.min(target.scrollHeight, 150)}px`;
+                        }}
+                        disabled={isLoading}
+                    />
+                    <button 
+                        onClick={handleSend} 
+                        disabled={isLoading || (input.trim() === '' && files.length === 0)} 
+                        className="w-12 h-12 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 disabled:bg-gray-400 flex-shrink-0 flex items-center justify-center"
+                        aria-label="Send message"
+                    >
+                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
                 </div>
             </div>
         </div>
